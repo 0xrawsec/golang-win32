@@ -108,8 +108,8 @@ func TestGetAllEventsFromChannel(t *testing.T) {
 		time.Sleep(10 * time.Second)
 		signal <- false
 	}()
-	//c := wevtapi.GetAllEventsFromChannel(SysmonChannel, wevtapi.EvtSubscribeToFutureEvents, signal)
-	c := wevtapi.GetAllEventsFromChannel(SecurityChannel, wevtapi.EvtSubscribeToFutureEvents, signal)
+	c := wevtapi.GetAllEventsFromChannel(SysmonChannel, wevtapi.EvtSubscribeToFutureEvents, signal)
+	//c := wevtapi.GetAllEventsFromChannel(SecurityChannel, wevtapi.EvtSubscribeToFutureEvents, signal)
 	//c := wevtapi.GetAllEventsFromChannel(SecurityChannel, wevtapi.EvtSubscribeStartAtOldestRecord, signal)
 	for e := range c {
 		bytes, err := json.Marshal(e)
