@@ -1,0 +1,120 @@
+package win32
+
+var (
+	NULL  = uintptr(0)
+	FALSE = BOOL(0)
+	TRUE  = BOOL(1)
+)
+
+type BOOL int
+type BOOLEAN BYTE
+type BYTE byte
+type CCHAR byte
+type CHAR byte
+type COLORREF DWORD
+type DWORDLONG uint64
+type DWORD uint32
+type DWORD32 uint32
+type DWORD64 uint64
+type HANDLE PVOID
+type WORD uint16
+type LONG int32
+type ULONG uint32
+type LONGLONG int64
+type ULONGLONG uint64
+type SIZE_T ULONG_PTR
+type ULONG_PTR uintptr
+type LONG_PTR int
+type PVOID uintptr
+type LPVOID uintptr
+type LPCVOID uintptr
+type LVOID uintptr
+type NTSTATUS LONG
+type KAFFINITY ULONG_PTR
+type KPRIORITY LONG
+type PPEB uintptr //not sure
+
+//
+const (
+	INVALID_HANDLE = LONG_PTR(-1)
+)
+
+//
+const (
+	DEBUG_PROCESS                    = 0x1
+	DEBUG_ONLY_THIS_PROCESS          = 0x2
+	CREATE_SUSPENDED                 = 0x4
+	DETACHED_PROCESS                 = 0x8
+	CREATE_NEW_CONSOLE               = 0x10
+	NORMAL_PRIORITY_CLASS            = 0x20
+	IDLE_PRIORITY_CLASS              = 0x40
+	HIGH_PRIORITY_CLASS              = 0x80
+	REALTIME_PRIORITY_CLASS          = 0x100
+	CREATE_NEW_PROCESS_GROUP         = 0x200
+	CREATE_UNICODE_ENVIRONMENT       = 0x400
+	CREATE_SEPARATE_WOW_VDM          = 0x800
+	CREATE_SHARED_WOW_VDM            = 0x1000
+	CREATE_FORCEDOS                  = 0x2000
+	BELOW_NORMAL_PRIORITY_CLASS      = 0x4000
+	ABOVE_NORMAL_PRIORITY_CLASS      = 0x8000
+	INHERIT_PARENT_AFFINITY          = 0x10000
+	INHERIT_CALLER_PRIORITY          = 0x20000
+	CREATE_PROTECTED_PROCESS         = 0x40000
+	EXTENDED_STARTUPINFO_PRESENT     = 0x80000
+	PROCESS_MODE_BACKGROUND_BEGIN    = 0x100000
+	PROCESS_MODE_BACKGROUND_END      = 0x200000
+	CREATE_BREAKAWAY_FROM_JOB        = 0x1000000
+	CREATE_PRESERVE_CODE_AUTHZ_LEVEL = 0x2000000
+	CREATE_DEFAULT_ERROR_MODE        = 0x4000000
+	CREATE_NO_WINDOW                 = 0x8000000
+	PROFILE_USER                     = 0x10000000
+	PROFILE_KERNEL                   = 0x20000000
+	PROFILE_SERVER                   = 0x40000000
+	CREATE_IGNORE_SYSTEM_DEFAULT     = 0x80000000
+)
+
+// Memory Allocation Types
+const (
+	MEM_COMMIT      = 0x1000
+	MEM_RESERVE     = 0x2000
+	MEM_DECOMMIT    = 0x4000
+	MEM_RELEASE     = 0x8000
+	MEM_FREE        = 0x10000
+	MEM_PRIVATE     = 0x20000
+	MEM_MAPPED      = 0x40000
+	MEM_RESET       = 0x80000
+	MEM_TOP_DOWN    = 0x100000
+	MEM_WRITE_WATCH = 0x200000
+	MEM_PHYSICAL    = 0x400000
+	MEM_ROTATE      = 0x800000
+	MEM_LARGE_PAGES = 0x20000000
+	MEM_4MB_PAGES   = 0x80000000
+)
+
+// Memory Protections
+const (
+	PAGE_NOACCESS          = 0x01
+	PAGE_READONLY          = 0x02
+	PAGE_READWRITE         = 0x04
+	PAGE_WRITECOPY         = 0x08
+	PAGE_EXECUTE           = 0x10
+	PAGE_EXECUTE_READ      = 0x20
+	PAGE_EXECUTE_READWRITE = 0x40
+	PAGE_EXECUTE_WRITECOPY = 0x80
+	PAGE_GUARD             = 0x100
+	PAGE_NOCACHE           = 0x200
+	PAGE_WRITECOMBINE      = 0x400
+)
+
+const (
+	IGNORE   = 0
+	INFINITE = 0xffffffff
+)
+
+// Winerror.h
+const (
+	WAIT_ABANDONED = 0x80
+	WAIT_OBJECT_0  = 0x0
+	WAIT_TIMEOUT   = 0x102
+	WAIT_FAILED    = 0xFFFFFFFF
+)
