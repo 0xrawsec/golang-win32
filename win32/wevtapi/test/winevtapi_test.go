@@ -112,7 +112,7 @@ func TestGetAllEventsFromChannel(t *testing.T) {
 	//c := wevtapi.GetAllEventsFromChannel(SecurityChannel, wevtapi.EvtSubscribeToFutureEvents, signal)
 	//c := wevtapi.GetAllEventsFromChannel(SecurityChannel, wevtapi.EvtSubscribeStartAtOldestRecord, signal)
 	for e := range c {
-		bytes, err := json.Marshal(e)
+		bytes, err := json.Marshal(e.ToJSONEvent())
 		if err != nil {
 			log.Error(err)
 		}

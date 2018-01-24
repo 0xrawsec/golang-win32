@@ -8,6 +8,8 @@ import (
 	"github.com/0xrawsec/golang-utils/log"
 )
 
+///////////////////////////////// XMLEvent /////////////////////////////////////
+
 type Data struct {
 	Name  string `xml:"Name,attr"`
 	Value string `xml:",innerxml"`
@@ -45,6 +47,73 @@ type XMLEvent struct {
 		} `xml:"Security"`
 	} `xml:"System"`
 }
+
+func (xe *XMLEvent) ToJSONEvent() *JSONEvent {
+	je := NewJSONEvent()
+	for _, d := range xe.EventData.Data {
+		je.Event.EventData[d.Name] = d.Value
+	}
+	// System
+	je.Event.System.Provider.Name = xe.System.Provider.Name
+	je.Event.System.Provider.Guid = xe.System.Provider.Guid
+	je.Event.System.EventID = xe.System.EventID
+	je.Event.System.Version = xe.System.Version
+	je.Event.System.Level = xe.System.Level
+	je.Event.System.Task = xe.System.Task
+	je.Event.System.Opcode = xe.System.Opcode
+	je.Event.System.Keywords = xe.System.Keywords
+	je.Event.System.TimeCreated.SystemTime = xe.System.TimeCreated.SystemTime
+	je.Event.System.EventRecordID = xe.System.EventRecordID
+	je.Event.System.Correlation = xe.System.Correlation
+	je.Event.System.Execution.ProcessID = xe.System.Execution.ProcessID
+	je.Event.System.Execution.ThreadID = xe.System.Execution.ThreadID
+	je.Event.System.Channel = xe.System.Channel
+	je.Event.System.Computer = xe.System.Computer
+	je.Event.System.Security.UserID = xe.System.Security.UserID
+	return &je
+}
+
+//////////////////////////////// JSONEvent /////////////////////////////////////
+
+type JSONEvent struct {
+	Event struct {
+		EventData map[string]string `xml:"EventData"`
+		System    struct {
+			Provider struct {
+				Name string `xml:"Name,attr"`
+				Guid string `xml:"Guid,attr"`
+			} `xml:"Provider"`
+			EventID     string `xml:"EventID"`
+			Version     string `xml:"Version"`
+			Level       string `xml:"Level"`
+			Task        string `xml:"Task"`
+			Opcode      string `xml:"Opcode"`
+			Keywords    string `xml:"Keywords"`
+			TimeCreated struct {
+				SystemTime string `xml:"SystemTime,attr"`
+			} `xml:"TimeCreated"`
+			EventRecordID string `xml:"EventRecordID"`
+			Correlation   struct {
+			} `xml:"Correlation"`
+			Execution struct {
+				ProcessID string `xml:"ProcessID,attr"`
+				ThreadID  string `xml:"ThreadID,attr"`
+			} `xml:"Execution"`
+			Channel  string `xml:"Channel"`
+			Computer string `xml:"Computer"`
+			Security struct {
+				UserID string `xml:"UserID,attr"`
+			} `xml:"Security"`
+		} `xml:"System"`
+	}
+}
+
+func NewJSONEvent() (je JSONEvent) {
+	je.Event.EventData = make(map[string]string)
+	return je
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 func GotSignal(signals chan bool) (signal bool, gotsig bool) {
 	select {
