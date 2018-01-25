@@ -2,6 +2,7 @@ package wevtapi
 
 import (
 	"encoding/xml"
+	"syscall"
 	"win32"
 	"win32/kernel32"
 
@@ -186,7 +187,9 @@ func GetAllEventsFromChannel(channel string, flag int, signal chan bool) (c chan
 					// Try to get events
 					events, err := EvtNext(sub, win32.INFINITE)
 					if err != nil {
-						log.Errorf("EvtNext cannot get events: %s", err)
+						if err.(syscall.Errno) != win32.ERROR_NO_MORE_ITEMS {
+							log.Errorf("EvtNext cannot get events: %s", err)
+						}
 						break
 					}
 
