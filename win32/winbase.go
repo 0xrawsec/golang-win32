@@ -113,6 +113,8 @@ const (
 
 // Winerror.h
 const (
+	ERROR_NO_MORE_ITEMS = 259
+
 	WAIT_ABANDONED = 0x80
 	WAIT_OBJECT_0  = 0x0
 	WAIT_TIMEOUT   = 0x102
