@@ -169,7 +169,7 @@ func GetAllEventsFromChannel(channel string, flag int, signal chan bool) (c chan
 
 		for {
 			rc := kernel32.WaitForSingleObject(event, win32.DWORD(1000))
-			log.Debugf("Got signal, events ready: 0x%08x", rc)
+			log.Debugf("Got signal, events ready (Channel: %s): 0x%08x", channel, rc)
 			switch rc {
 			case win32.WAIT_TIMEOUT:
 				// Check if we received a signal to stop
@@ -187,8 +187,11 @@ func GetAllEventsFromChannel(channel string, flag int, signal chan bool) (c chan
 					// Try to get events
 					events, err := EvtNext(sub, win32.INFINITE)
 					if err != nil {
-						if err.(syscall.Errno) != win32.ERROR_NO_MORE_ITEMS {
-							log.Errorf("EvtNext cannot get events: %s", err)
+						log.Debugf("EvtNext cannot get events (Channel:%s Errno: %d): %s", channel, err.(syscall.Errno), err)
+						switch err.(syscall.Errno) {
+						case win32.ERROR_INVALID_OPERATION, win32.ERROR_NO_MORE_ITEMS:
+						default:
+							log.Errorf("EvtNext cannot get events (Channel: %s): %s", channel, err)
 						}
 						break
 					}
