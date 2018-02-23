@@ -4,6 +4,7 @@ import (
 	"encoding/xml"
 	"syscall"
 	"win32"
+	"fmt"
 	"win32/kernel32"
 
 	"github.com/0xrawsec/golang-utils/log"
@@ -136,7 +137,14 @@ func GetAllEventsFromChannel(channel string, flag int, signal chan bool) (c chan
 	c = make(chan *XMLEvent, 42)
 
 	// Creating event
-	event, err := kernel32.CreateEvent(0, win32.TRUE, win32.TRUE, "")
+	// If we reuse name, we reuse event, even across processes
+	eUUID, err := win32.UUID()
+	if err != nil {
+		log.LogErrorAndExit(fmt.Errorf("Cannot generate UUID: %s", err))
+	}
+
+	log.Debugf("Windows Event UUID (Channel:%s): %s", channel, eUUID)
+	event, err := kernel32.CreateEvent(0, win32.TRUE, win32.TRUE, eUUID)
 	if err != nil {
 		log.Errorf("Cannot create event: %s", err)
 		close(c)
@@ -189,7 +197,7 @@ func GetAllEventsFromChannel(channel string, flag int, signal chan bool) (c chan
 					if err != nil {
 						log.Debugf("EvtNext cannot get events (Channel:%s Errno: %d): %s", channel, err.(syscall.Errno), err)
 						switch err.(syscall.Errno) {
-						case win32.ERROR_INVALID_OPERATION, win32.ERROR_NO_MORE_ITEMS:
+						case win32.ERROR_NO_MORE_ITEMS:
 						default:
 							log.Errorf("EvtNext cannot get events (Channel: %s): %s", channel, err)
 						}
