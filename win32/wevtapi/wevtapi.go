@@ -4,8 +4,6 @@ import (
 	"syscall"
 	"unsafe"
 	"win32"
-
-	"github.com/0xrawsec/golang-utils/log"
 )
 
 // EvtClose wrapper
@@ -98,9 +96,9 @@ func EvtNext(ResultSet EVT_HANDLE, Timeout win32.DWORD) ([]EVT_HANDLE, error) {
 	var EventArray [EventArraySize]EVT_HANDLE
 	var Returned win32.DWORD
 
-	log.Debugf("ResultSet = 0x%08x", uintptr(ResultSet))
-	log.Debugf("EventArraySize = %d", EventArraySize)
-	log.Debugf("Timeout = 0x%08x", Timeout)
+	// log.Debugf("ResultSet = 0x%08x", uintptr(ResultSet))
+	// log.Debugf("EventArraySize = %d", EventArraySize)
+	// log.Debugf("Timeout = 0x%08x", Timeout)
 	r1, _, lastErr := evtNext.Call(
 		uintptr(ResultSet),
 		uintptr(win32.DWORD(EventArraySize)),
@@ -108,8 +106,8 @@ func EvtNext(ResultSet EVT_HANDLE, Timeout win32.DWORD) ([]EVT_HANDLE, error) {
 		uintptr(Timeout),
 		uintptr(0),
 		uintptr(unsafe.Pointer(&Returned)))
-	log.Debugf("Returned = %d", Returned)
-	log.Debugf("EventArray = %v", EventArray)
+	// log.Debugf("Returned = %d", Returned)
+	// log.Debugf("EventArray = %v", EventArray)
 
 	if win32.BOOL(r1) == win32.FALSE {
 		return EventArray[:Returned], lastErr
@@ -132,7 +130,7 @@ func EvtRenderXML(Context EVT_HANDLE) ([]byte, error) {
 		uintptr(unsafe.Pointer(&buffer[0])),
 		uintptr(unsafe.Pointer(&BufferUsed)),
 		uintptr(unsafe.Pointer(&PropertyCount)))
-	log.Debugf("BufferUsed = %d", BufferUsed)
+	// log.Debugf("BufferUsed = %d", BufferUsed)
 	if win32.BOOL(r1) == win32.FALSE {
 		return buffer[:], lastErr
 	}

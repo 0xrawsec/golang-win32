@@ -2,9 +2,10 @@ package wevtapi
 
 import (
 	"encoding/xml"
-	"syscall"
-	"win32"
 	"fmt"
+	"syscall"
+	"time"
+	"win32"
 	"win32/kernel32"
 
 	"github.com/0xrawsec/golang-utils/log"
@@ -201,7 +202,11 @@ func GetAllEventsFromChannel(channel string, flag int, signal chan bool) (c chan
 						default:
 							log.Errorf("EvtNext cannot get events (Channel: %s): %s", channel, err)
 						}
-						break
+						// if we break when there is no events we go into an endless loop
+						// because event always receive WAIT_TIMEOUT so we replaced by a
+						// simple sleep followed by a continue and it works fine
+						time.Sleep(1 * time.Second)
+						continue
 					}
 
 					// Looping over the events retrieved
