@@ -4,7 +4,6 @@ import (
 	"encoding/xml"
 	"fmt"
 	"syscall"
-	"time"
 	"win32"
 	"win32/kernel32"
 
@@ -131,6 +130,7 @@ func GotSignal(signals chan bool) (signal bool, gotsig bool) {
 // from the given Windows Event Channel given in parameter
 // flag has to be a value from enum EVT_SUBSCRIBE_FLAGS (c.f. headers.go)
 // signal is used to stop the collection process
+// Translated from source: https://msdn.microsoft.com/en-us/library/windows/desktop/aa385771(v=vs.85).aspx
 func GetAllEventsFromChannel(channel string, flag int, signal chan bool) (c chan *XMLEvent) {
 	var err error
 
@@ -178,15 +178,16 @@ func GetAllEventsFromChannel(channel string, flag int, signal chan bool) (c chan
 
 		for {
 			rc := kernel32.WaitForSingleObject(event, win32.DWORD(1000))
-			log.Debugf("Got signal, events ready (Channel: %s): 0x%08x", channel, rc)
 			switch rc {
 			case win32.WAIT_TIMEOUT:
+				log.Debugf("Timeout waiting for events, (Channel: %s): 0x%08x", channel, rc)
 				// Check if we received a signal to stop
 				if _, got := GotSignal(signal); got {
 					return
 				}
 
 			case win32.WAIT_OBJECT_0:
+				log.Debugf("Events are ready, (Cannel: %s): 0x%08x", channel, rc)
 				for {
 					// Check if we received a signal to stop
 					if _, got := GotSignal(signal); got {
@@ -197,16 +198,16 @@ func GetAllEventsFromChannel(channel string, flag int, signal chan bool) (c chan
 					events, err := EvtNext(sub, win32.INFINITE)
 					if err != nil {
 						log.Debugf("EvtNext cannot get events (Channel:%s Errno: %d): %s", channel, err.(syscall.Errno), err)
-						switch err.(syscall.Errno) {
-						case win32.ERROR_NO_MORE_ITEMS:
-						default:
+						if err.(syscall.Errno) == win32.ERROR_NO_MORE_ITEMS {
+							err = kernel32.ResetEvent(event)
+							if err != nil {
+								log.Errorf("Failed to reset event: %s", err)
+								return
+							}
+							break
+						} else {
 							log.Errorf("EvtNext cannot get events (Channel: %s): %s", channel, err)
 						}
-						// if we break when there is no events we go into an endless loop
-						// because event always receive WAIT_TIMEOUT so we replaced by a
-						// simple sleep followed by a continue and it works fine
-						time.Sleep(1 * time.Second)
-						continue
 					}
 
 					// Looping over the events retrieved
@@ -235,14 +236,8 @@ func GetAllEventsFromChannel(channel string, flag int, signal chan bool) (c chan
 						EvtClose(event)
 					}
 				}
-				err = kernel32.ResetEvent(event)
-				if err != nil {
-					log.Errorf("Failed to reset event: %s", err)
-					return
-				}
 			}
 		}
 	}()
-
 	return
 }
