@@ -126,6 +126,49 @@ func GotSignal(signals chan bool) (signal bool, gotsig bool) {
 	return false, false
 }
 
+func enumerateEvents(sub EVT_HANDLE, channel string, signal chan bool, out chan *XMLEvent) (err error) {
+	for {
+		// Check if we received a signal to stop
+		if _, got := GotSignal(signal); got {
+			// Return error sucess
+			return syscall.Errno(0)
+		}
+
+		// Try to get events
+		events, err := EvtNext(sub, win32.INFINITE)
+		if err != nil {
+			log.Debugf("EvtNext cannot get events (Channel:%s Errno: %d): %s", channel, err.(syscall.Errno), err)
+			return err
+		}
+
+		// Looping over the events retrieved
+		for _, evt := range events {
+
+			// Render event to XML
+			data, err := EvtRenderXML(evt)
+			if err != nil {
+				log.Errorf("Cannot Render event to XML: %s", err)
+				log.Debugf("Partial Event: %s", data)
+			}
+
+			// Convert event to UTF8 before being processed by xml.Unmarshal
+			dataUTF8 := win32.UTF16BytesToString(data)
+			e := XMLEvent{}
+			err = xml.Unmarshal([]byte(dataUTF8), &e)
+			if err != nil {
+				log.Errorf("Cannot unmarshal event: %s", err)
+				log.Debugf("Event unmarshal failure: %s", dataUTF8)
+			}
+			// Pushing reference to XMLEvent into the channel
+			out <- &e
+
+			// Close the event anyway
+			// Recommended: https://msdn.microsoft.com/en-us/library/windows/desktop/aa385344(v=vs.85).aspx
+			EvtClose(evt)
+		}
+	}
+}
+
 // GetAllEventsFromChannel returns a Go channel containing XMLEvents retrieved
 // from the given Windows Event Channel given in parameter
 // flag has to be a value from enum EVT_SUBSCRIBE_FLAGS (c.f. headers.go)
@@ -177,7 +220,7 @@ func GetAllEventsFromChannel(channel string, flag int, signal chan bool) (c chan
 		defer kernel32.CloseHandle(event)
 
 		for {
-			rc := kernel32.WaitForSingleObject(event, win32.DWORD(1000))
+			rc := kernel32.WaitForSingleObject(event, win32.DWORD(1))
 			switch rc {
 			case win32.WAIT_TIMEOUT:
 				log.Debugf("Timeout waiting for events, (Channel: %s): 0x%08x", channel, rc)
@@ -187,54 +230,21 @@ func GetAllEventsFromChannel(channel string, flag int, signal chan bool) (c chan
 				}
 
 			case win32.WAIT_OBJECT_0:
-				log.Debugf("Events are ready, (Cannel: %s): 0x%08x", channel, rc)
-				for {
-					// Check if we received a signal to stop
-					if _, got := GotSignal(signal); got {
-						return
+				log.Debugf("Events are ready, (Channel: %s): 0x%08x", channel, rc)
+				// We need to ResetEvent asap
+				// My theory why MS code does not work for high freq events:
+				// If we reset after enumerating, the event might get into a signalled state (by the publisher)
+				// between enumerateEvents and ResetEvent. This means that Resetting events
+				// creates a deadlock (publisher will not put in a signalled state because it thinks
+				// it did it already and we reset the event) so WaitForSingleObject will return
+				// only timeouts. Took a while to find this explaination ...
+				kernel32.ResetEvent(event)
+				if err := enumerateEvents(sub, channel, signal, c); err.(syscall.Errno) != win32.ERROR_NO_MORE_ITEMS {
+					// If != of Exit Success
+					if err.(syscall.Errno) != 0 {
+						log.Errorf("Failed to enumerate events: %s", err)
 					}
-
-					// Try to get events
-					events, err := EvtNext(sub, win32.INFINITE)
-					if err != nil {
-						log.Debugf("EvtNext cannot get events (Channel:%s Errno: %d): %s", channel, err.(syscall.Errno), err)
-						if err.(syscall.Errno) == win32.ERROR_NO_MORE_ITEMS {
-							err = kernel32.ResetEvent(event)
-							if err != nil {
-								log.Errorf("Failed to reset event: %s", err)
-								return
-							}
-							break
-						} else {
-							log.Errorf("EvtNext cannot get events (Channel: %s): %s", channel, err)
-						}
-					}
-
-					// Looping over the events retrieved
-					for _, event := range events {
-
-						// Render event to XML
-						data, err := EvtRenderXML(event)
-						if err != nil {
-							log.Errorf("Cannot Render event to XML: %s", err)
-							log.Debugf("Partial Event: %s", data)
-						}
-
-						// Convert event to UTF8 before being processed by xml.Unmarshal
-						dataUTF8 := win32.UTF16BytesToString(data)
-						e := XMLEvent{}
-						err = xml.Unmarshal([]byte(dataUTF8), &e)
-						if err != nil {
-							log.Errorf("Cannot unmarshal event: %s", err)
-							log.Debugf("Event unmarshal failure: %s", dataUTF8)
-						}
-						// Pushing reference to XMLEvent into the channel
-						c <- &e
-
-						// Close the event anyway
-						// Recommended: https://msdn.microsoft.com/en-us/library/windows/desktop/aa385344(v=vs.85).aspx
-						EvtClose(event)
-					}
+					break
 				}
 			}
 		}
