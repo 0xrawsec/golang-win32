@@ -226,6 +226,10 @@ func GetAllEventsFromChannel(channel string, flag int, signal chan bool) (c chan
 			switch rc {
 			case win32.WAIT_TIMEOUT:
 				log.Debugf("Timeout waiting for events, (Channel: %s): 0x%08x", channel, rc)
+				// Check if we received a signal to stop
+				if _, got := GotSignal(signal); got {
+					return
+				}
 
 			case win32.WAIT_OBJECT_0:
 				log.Debugf("Events are ready, (Channel: %s): 0x%08x", channel, rc)
