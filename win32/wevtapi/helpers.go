@@ -131,6 +131,7 @@ func enumerateEvents(sub EVT_HANDLE, channel string, signal chan bool, out chan 
 		// Check if we received a signal to stop
 		if _, got := GotSignal(signal); got {
 			// Return error sucess
+			// This will terminate polling loop
 			return syscall.Errno(0)
 		}
 
@@ -219,15 +220,12 @@ func GetAllEventsFromChannel(channel string, flag int, signal chan bool) (c chan
 		// Closing event
 		defer kernel32.CloseHandle(event)
 
+	PollLoop:
 		for {
-			rc := kernel32.WaitForSingleObject(event, win32.DWORD(1))
+			rc := kernel32.WaitForSingleObject(event, win32.DWORD(100))
 			switch rc {
 			case win32.WAIT_TIMEOUT:
 				log.Debugf("Timeout waiting for events, (Channel: %s): 0x%08x", channel, rc)
-				// Check if we received a signal to stop
-				if _, got := GotSignal(signal); got {
-					return
-				}
 
 			case win32.WAIT_OBJECT_0:
 				log.Debugf("Events are ready, (Channel: %s): 0x%08x", channel, rc)
@@ -244,7 +242,7 @@ func GetAllEventsFromChannel(channel string, flag int, signal chan bool) (c chan
 					if err.(syscall.Errno) != 0 {
 						log.Errorf("Failed to enumerate events: %s", err)
 					}
-					break
+					break PollLoop
 				}
 			}
 		}
