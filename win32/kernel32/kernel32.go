@@ -114,6 +114,37 @@ func GetModuleHandleW(lpModuleName string) (win32.HANDLE, error) {
 	return win32.HANDLE(r1), nil
 }
 
+// GetModuleFilename Win32 API wrapper
+func GetModuleFilename(hProcess win32.HANDLE, lpFileName []uint16) (int, error) {
+	var buf [win32.MAX_PATH]uint16
+	n := win32.DWORD(len(buf))
+	r1, _, lastErr := getModuleFileNameW.Call(
+		uintptr(hProcess),
+		uintptr(unsafe.Pointer(&buf)),
+		uintptr(n))
+	if lastErr.(syscall.Errno) == 0 {
+		copy(lpFileName, buf[:n])
+		return int(r1), nil
+	}
+	return 0, lastErr
+}
+
+// QueryFullProcessImageName Win32 API wrapper
+func QueryFullProcessImageName(hProcess win32.HANDLE, lpFileName []uint16) (int, error) {
+	var buf [win32.MAX_PATH]uint16
+	n := win32.DWORD(len(buf))
+	r1, _, lastErr := queryFullProcessImageNameW.Call(
+		uintptr(hProcess),
+		uintptr(0),
+		uintptr(unsafe.Pointer(&buf)),
+		uintptr(unsafe.Pointer(&n)))
+	if lastErr.(syscall.Errno) == 0 {
+		copy(lpFileName, buf[:n])
+		return int(r1), nil
+	}
+	return 0, lastErr
+}
+
 // SetThreadContext Win32 API wrapper
 func SetThreadContext(hThread win32.HANDLE, lpContext win32.LPCONTEXT) error {
 	r1, _, lastErr := setThreadContext.Call(uintptr(hThread), uintptr(unsafe.Pointer(lpContext)))

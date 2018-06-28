@@ -39,6 +39,10 @@ const (
 	INVALID_HANDLE = LONG_PTR(-1)
 )
 
+const (
+	MAX_PATH = 260
+)
+
 //
 const (
 	DEBUG_PROCESS                    = 0x1

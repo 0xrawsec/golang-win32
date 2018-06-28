@@ -67,6 +67,34 @@ func ForceDumpAllMemory(pid int, dumpFile string) error {
 	return nil
 }
 
+// GetModuleFilenameSelf helper function to retrieve self executable module
+// filename
+func GetModuleFilenameSelf() (string, error) {
+	lpFilename := make([]uint16, win32.MAX_PATH)
+	_, err := GetModuleFilename(0, lpFilename)
+	if err != nil {
+		return "", err
+	}
+	return syscall.UTF16ToString(lpFilename), err
+}
+
+// GetModuleFilenameFromPID helper function to retrieve the module filename from
+// a pid
+func GetModuleFilenameFromPID(pid int) (fn string, err error) {
+	// Open the process with appropriate access rights
+	da := uint32(PROCESS_QUERY_LIMITED_INFORMATION)
+	hProcess, err := syscall.OpenProcess(da, false, uint32(pid))
+	if err != nil {
+		return
+	}
+	lpFilename := make([]uint16, win32.MAX_PATH)
+	_, err = QueryFullProcessImageName(win32.HANDLE(hProcess), lpFilename)
+	if err != nil {
+		return
+	}
+	return syscall.UTF16ToString(lpFilename), err
+}
+
 // ListThreads list the threads of process pid
 func ListThreads(pid int) (ctid chan int) {
 	ctid = make(chan int)
