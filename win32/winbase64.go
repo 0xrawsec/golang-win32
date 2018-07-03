@@ -2,6 +2,8 @@
 
 package win32
 
+import "fmt"
+
 const (
 	CONTEXT_AMD64 = 0x100000
 
@@ -33,6 +35,11 @@ type MemoryBasicInformation struct {
 	Protect           DWORD
 	Type              DWORD
 	Alignment2        DWORD
+}
+
+func (mbi MemoryBasicInformation) String() string {
+	return fmt.Sprintf("BaseAddress: 0x%016x\n AllocationBase: 0x%016x\n AllocationProtect: 0x%08x\n Alignment1: 0x%08x\n RegionSize: %d\n State: 0x%08x\n Protect: 0x%08x\n Type: 0x%08x",
+		mbi.BaseAddress, mbi.AllocationBase, mbi.AllocationProtect, mbi.Alignment1, mbi.RegionSize, mbi.State, mbi.Protect, mbi.Type)
 }
 
 type M128A struct {

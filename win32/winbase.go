@@ -33,6 +33,7 @@ type NTSTATUS LONG
 type KAFFINITY ULONG_PTR
 type KPRIORITY LONG
 type PPEB uintptr //not sure
+type UINT uint
 
 //
 const (

@@ -9,7 +9,7 @@ import (
 	"win32"
 	"win32/kernel32"
 
-	"freebase.ninja/golang-utils/toolbox/log"
+	"github.com/0xrawsec/golang-utils/log"
 )
 
 var (
@@ -112,9 +112,8 @@ func TestReadProcessMemory(t *testing.T) {
 	kernel32.ForceDumpAllMemory(int(pi.ProcessId), "memory.dmp")
 }
 
-func TestCreateToolhelp32(t *testing.T) {
-	pid := 0
-	snap, err := kernel32.CreateToolhelp32Snapshot(win32.DWORD(kernel32.TH32CS_SNAPTHREAD), win32.DWORD(pid))
+func TestThreadFirst32(t *testing.T) {
+	snap, err := kernel32.CreateToolhelp32Snapshot(win32.DWORD(kernel32.TH32CS_SNAPALL), win32.DWORD(0))
 	if err != nil {
 		log.LogError(err)
 		return
@@ -126,7 +125,26 @@ func TestCreateToolhelp32(t *testing.T) {
 		log.LogError(err)
 		return
 	}
-	log.Debug(ToJSON(te))
+	for ok, _ := kernel32.Thread32Next(snap, &te); ok; {
+		log.Debug(ToJSON(te))
+		ok, _ = kernel32.Thread32Next(snap, &te)
+	}
+}
+func TestProcessFirst32(t *testing.T) {
+	pid := 0
+	snap, err := kernel32.CreateToolhelp32Snapshot(win32.DWORD(kernel32.TH32CS_SNAPALL), win32.DWORD(pid))
+	if err != nil {
+		log.LogError(err)
+		return
+	}
+	defer kernel32.CloseHandle(snap)
+	pe := kernel32.NewProcessEntry32W()
+	ok, err := kernel32.Process32FirstW(snap, &pe)
+	if !ok {
+		log.LogError(err)
+		return
+	}
+	log.Debug(ToJSON(pe))
 }
 
 func TestListThreads(t *testing.T) {
@@ -144,4 +162,68 @@ func TestSuspendResumeProcess(t *testing.T) {
 	log.Infof("Resuming %d", pid)
 	kernel32.ResumeProcess(pid)
 
+}
+
+func TestEnumProcessModules(t *testing.T) {
+	hProcess, _ := kernel32.GetCurrentProcess()
+	modules, err := kernel32.EnumProcessModules(hProcess)
+	if err != nil {
+		t.Log(err)
+		t.FailNow()
+	}
+	t.Log(modules)
+	for _, hMod := range modules {
+		modName, err := kernel32.GetModuleFilenameExW(hProcess, hMod)
+		if err != nil {
+			t.Log(err)
+			t.FailNow()
+		}
+		t.Log(modName)
+		modInfo, err := kernel32.GetModuleInformation(hProcess, hMod)
+		if err != nil {
+			t.Log(err)
+			t.FailNow()
+		}
+		t.Log(modInfo)
+	}
+}
+
+func TestGetModuleInfoFromPid(t *testing.T) {
+	image := "C:\\Windows\\System32\\calc.exe"
+	kernel32.FindTextSectionFromImage(image)
+	name, err := syscall.UTF16PtrFromString("C:\\Windows\\System32\\calc.exe")
+	if err != nil {
+		panic(err)
+	}
+	si := new(syscall.StartupInfo)
+	pi := new(syscall.ProcessInformation)
+	t.Logf("Creating process: %s", image)
+	syscall.CreateProcess(name, nil, nil, nil, false, win32.CREATE_NEW_CONSOLE, nil, nil, si, pi)
+	if !kernel32.WaitThreadRuns(win32.HANDLE(pi.Thread), time.Second*5) {
+		t.Log("Main thread did not run in a decent amount of time")
+		t.FailNow()
+	}
+	time.Sleep(time.Millisecond * 500)
+	mi, err := kernel32.GetImageModuleInfoFromPID(pi.ProcessId)
+	if err != nil {
+		t.Logf("Cannot retrieve ModuleInfo from pid: %s", err)
+		t.FailNow()
+	}
+	t.Logf("Module Information: %s", mi)
+	text, err := kernel32.FindTextSection(win32.HANDLE(pi.Process), mi)
+	if err != nil {
+		t.Logf("Cannot get text section")
+		t.FailNow()
+	}
+	t.Logf("Text section of binary: %s", text)
+	ok, err := kernel32.CheckProcessIntegrity(win32.HANDLE(pi.Process))
+	if err != nil {
+		t.Logf("Cannot check process integrity")
+		t.FailNow()
+	}
+	t.Logf("Integrity check: %t", ok)
+	if !ok {
+		t.FailNow()
+	}
+	kernel32.TerminateProcess(win32.HANDLE(pi.Process), 0)
 }

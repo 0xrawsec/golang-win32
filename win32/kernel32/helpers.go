@@ -1,9 +1,12 @@
 package kernel32
 
 import (
+	"debug/pe"
 	"encoding/json"
 	"os"
+	"strings"
 	"syscall"
+	"time"
 
 	"fmt"
 	"reflect"
@@ -67,32 +70,103 @@ func ForceDumpAllMemory(pid int, dumpFile string) error {
 	return nil
 }
 
+// FindTextSection returns the Memory Basic Information of the memory
+// zone containing the entrypoint of the image
+func FindTextSection(hProcess win32.HANDLE, mi MODULEINFO) (mbi win32.MemoryBasicInformation, err error) {
+	for address := win32.LPCVOID(mi.LpBaseOfDll); address-win32.LPCVOID(mi.LpBaseOfDll) < win32.LPCVOID(mi.SizeOfImage); {
+		mbi, err = VirtualQueryEx(win32.HANDLE(hProcess), address)
+		// Entrypoint is in this memory area
+		if win32.ULONGLONG(mi.EntryPoint) > mbi.BaseAddress && win32.ULONGLONG(mi.EntryPoint) < mbi.BaseAddress+mbi.RegionSize {
+			return
+		}
+		address += win32.LPCVOID(mbi.RegionSize)
+	}
+	return
+}
+
+// FindTextSectionFromImage returns the section containing the entrypoint
+func FindTextSectionFromImage(image string) (section []byte, err error) {
+	// parse the pe file
+	var entrypoint uint32
+	imPe, err := pe.Open(image)
+	if err != nil {
+		return
+	}
+	defer imPe.Close()
+	switch imPe.OptionalHeader.(type) {
+	case *pe.OptionalHeader32:
+		entrypoint = imPe.OptionalHeader.(*pe.OptionalHeader32).AddressOfEntryPoint
+	case *pe.OptionalHeader64:
+		entrypoint = imPe.OptionalHeader.(*pe.OptionalHeader64).AddressOfEntryPoint
+	}
+
+	for _, s := range imPe.Sections {
+		header := s.SectionHeader
+		if entrypoint > header.VirtualAddress && entrypoint < header.VirtualAddress+header.Size {
+			return s.Data()
+		}
+	}
+	return
+}
+
+// CheckProcessIntegrity helper function to check process integrity
+// compare entrypoint section on disk and in memory
+func CheckProcessIntegrity(hProcess win32.HANDLE) (bytediff int, length int, err error) {
+	image, err := QueryFullProcessImageName(hProcess)
+	if err != nil {
+		return 0, 0, fmt.Errorf("Cannot get image of process")
+	}
+	mi, err := GetImageModuleInfo(hProcess)
+	if err != nil {
+		return 0, 0, fmt.Errorf("Cannot get module info")
+	}
+	// We get the text section from memory
+	memInfoTextInMem, err := FindTextSection(hProcess, mi)
+	if err != nil {
+		return 0, 0, fmt.Errorf("Cannot find section in memory")
+	}
+	textInMem := make([]byte, memInfoTextInMem.RegionSize)
+	_, err = ReadProcessMemory(hProcess, win32.LPCVOID(memInfoTextInMem.BaseAddress), textInMem)
+	if err != nil {
+		return 0, 0, fmt.Errorf("Cannot read process memory")
+	}
+	textOnDisk, err := FindTextSectionFromImage(image)
+	if err != nil {
+		return 0, 0, fmt.Errorf("Cannot find section on disk")
+	}
+	// If we meet one of those condition we don't need to go further
+	if len(textInMem) < len(textOnDisk) {
+		return 0, 0, nil
+	}
+	tim := textInMem[:len(textOnDisk)]
+	return fastDiff(&tim, &textOnDisk), len(textOnDisk), nil
+}
+
+func fastDiff(b1, b2 *[]byte) (diff int) {
+	for i := 0; i < len(*b1); i++ {
+		if (*b1)[i] != (*b2)[i] {
+			diff++
+		}
+	}
+	return diff
+}
+
 // GetModuleFilenameSelf helper function to retrieve self executable module
 // filename
 func GetModuleFilenameSelf() (string, error) {
-	lpFilename := make([]uint16, win32.MAX_PATH)
-	_, err := GetModuleFilename(0, lpFilename)
-	if err != nil {
-		return "", err
-	}
-	return syscall.UTF16ToString(lpFilename), err
+	return GetModuleFilename(0)
 }
 
 // GetModuleFilenameFromPID helper function to retrieve the module filename from
 // a pid
 func GetModuleFilenameFromPID(pid int) (fn string, err error) {
 	// Open the process with appropriate access rights
-	da := uint32(PROCESS_QUERY_LIMITED_INFORMATION)
-	hProcess, err := syscall.OpenProcess(da, false, uint32(pid))
+	hProcess, err := OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, win32.FALSE, win32.DWORD(pid))
 	if err != nil {
 		return
 	}
-	lpFilename := make([]uint16, win32.MAX_PATH)
-	_, err = QueryFullProcessImageName(win32.HANDLE(hProcess), lpFilename)
-	if err != nil {
-		return
-	}
-	return syscall.UTF16ToString(lpFilename), err
+	defer CloseHandle(hProcess)
+	return QueryFullProcessImageName(win32.HANDLE(hProcess))
 }
 
 // ListThreads list the threads of process pid
@@ -100,7 +174,7 @@ func ListThreads(pid int) (ctid chan int) {
 	ctid = make(chan int)
 	go func() {
 		defer close(ctid)
-		for i := 0; i < 20000; i++ {
+		for i := 0; i < 100000; i++ {
 			hThread, err := OpenThread(THREAD_QUERY_LIMITED_INFORMATION, win32.FALSE, win32.DWORD(i))
 			if err == nil {
 				ppid, err := GetProcessIdOfThread(hThread)
@@ -115,6 +189,86 @@ func ListThreads(pid int) (ctid chan int) {
 		}
 	}()
 	return
+}
+
+// GetFirstTidOfPid list the threads of process pid
+func GetFirstTidOfPid(pid int) int {
+	for i := 0; i < 100000; i++ {
+		hThread, err := OpenThread(THREAD_QUERY_LIMITED_INFORMATION, win32.FALSE, win32.DWORD(i))
+		if err == nil {
+			ppid, err := GetProcessIdOfThread(hThread)
+			if err != nil {
+				log.LogError(err)
+			}
+			if int(ppid) == pid {
+				return i
+			}
+			CloseHandle(hThread)
+		}
+	}
+	return -1
+}
+
+// IsThreadRunning returns true if hThread is running else false
+// It is a little hack since I am not aware of any API call to check
+// whether a thread is running or not
+func IsThreadRunning(hThread win32.HANDLE) (bool, error) {
+	count, err := SuspendThread(hThread)
+	if err != nil {
+		return false, err
+	}
+	ResumeThread(hThread)
+	return count == 0, nil
+}
+
+// WaitThreadRuns waits until a thread is running
+func WaitThreadRuns(hThread win32.HANDLE, timeout time.Duration) bool {
+	step := time.Millisecond * 100
+	for wait := time.Duration(0); wait < timeout; wait += step {
+		if ok, _ := IsThreadRunning(hThread); ok {
+			return true
+		}
+		time.Sleep(step)
+	}
+	return false
+}
+
+// GetImageModuleInfo helper function
+func GetImageModuleInfo(hProcess win32.HANDLE) (mi MODULEINFO, err error) {
+	procImage, err := QueryFullProcessImageName(hProcess)
+	if err != nil {
+		return
+	}
+	modules, err := EnumProcessModules(hProcess)
+	if err != nil {
+		return
+	}
+	for _, hMod := range modules {
+		var modName string
+		modName, err = GetModuleFilenameExW(hProcess, hMod)
+		if err != nil {
+			return
+		}
+		log.Infof("Module Name: %s", modName)
+		// need this otherwise we can have issue not finding the module
+		if strings.ToLower(modName) == strings.ToLower(procImage) {
+			log.Debugf("Found module name: %s", modName)
+			mi, err = GetModuleInformation(hProcess, hMod)
+			return mi, err
+		}
+	}
+	return mi, fmt.Errorf("Module not found")
+}
+
+// GetImageModuleInfoFromPID helper function
+func GetImageModuleInfoFromPID(pid uint32) (mi MODULEINFO, err error) {
+	// open remote process
+	hProcess, err := OpenProcess(PROCESS_QUERY_INFORMATION|PROCESS_VM_READ, win32.FALSE, win32.DWORD(pid))
+	if err != nil {
+		return
+	}
+	defer CloseHandle(hProcess)
+	return GetImageModuleInfo(hProcess)
 }
 
 // SuspendProcess suspends a given process

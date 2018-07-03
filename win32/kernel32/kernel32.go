@@ -45,13 +45,38 @@ func CreateToolhelp32Snapshot(dwFlags win32.DWORD, th32ProcessID win32.DWORD) (w
 	return win32.HANDLE(r1), lastErr
 }
 
+func EnumProcessModules(hProcess win32.HANDLE) ([]win32.HANDLE, error) {
+	var hMods [1024]win32.HANDLE
+	needed := win32.DWORD(0)
+	_, _, err := k32EnumProcessModules.Call(
+		uintptr(hProcess),
+		uintptr(unsafe.Pointer(&hMods)),
+		uintptr(len(hMods)),
+		uintptr(unsafe.Pointer(&needed)))
+	if err.(syscall.Errno) == 0 {
+		// Number of hModules returned
+		n := (uintptr(needed) / unsafe.Sizeof(win32.HANDLE(0)))
+		return hMods[:n], nil
+	}
+	return hMods[:], err
+}
+
+func Process32FirstW(hSnapshot win32.HANDLE, lppe LPPROCESSENTRY32W) (bool, error) {
+	_, _, lastErr := process32FirstW.Call(
+		uintptr(hSnapshot),
+		uintptr(unsafe.Pointer(lppe)))
+	if lastErr.(syscall.Errno) == 0 {
+		return true, nil
+	}
+	return false, lastErr
+}
+
 // Thread32First Win32 API wrapper
 func Thread32First(hSnapshot win32.HANDLE, lpte LPTHREADENTRY32) (bool, error) {
-	log.Debugf("hSnapshot: 0x%08x", hSnapshot)
-	r1, _, lastErr := thread32First.Call(
+	_, _, lastErr := thread32First.Call(
 		uintptr(hSnapshot),
 		uintptr(unsafe.Pointer(lpte)))
-	if win32.BOOL(r1) == win32.TRUE {
+	if lastErr.(syscall.Errno) == 0 {
 		return true, nil
 	}
 	return false, lastErr
@@ -59,11 +84,10 @@ func Thread32First(hSnapshot win32.HANDLE, lpte LPTHREADENTRY32) (bool, error) {
 
 // Thread32Next Win32 API wrapper
 func Thread32Next(hSnapshot win32.HANDLE, lpte LPTHREADENTRY32) (bool, error) {
-	r1, _, lastErr := thread32First.Call(
+	_, _, lastErr := thread32First.Call(
 		uintptr(hSnapshot),
 		uintptr(unsafe.Pointer(lpte)))
-	log.LogError(lastErr)
-	if win32.BOOL(r1) == win32.TRUE {
+	if lastErr.(syscall.Errno) == 0 {
 		return true, nil
 	}
 	return false, lastErr
@@ -115,34 +139,62 @@ func GetModuleHandleW(lpModuleName string) (win32.HANDLE, error) {
 }
 
 // GetModuleFilename Win32 API wrapper
-func GetModuleFilename(hProcess win32.HANDLE, lpFileName []uint16) (int, error) {
+func GetModuleFilename(hProcess win32.HANDLE) (string, error) {
 	var buf [win32.MAX_PATH]uint16
 	n := win32.DWORD(len(buf))
-	r1, _, lastErr := getModuleFileNameW.Call(
+	_, _, lastErr := getModuleFileNameW.Call(
 		uintptr(hProcess),
 		uintptr(unsafe.Pointer(&buf)),
 		uintptr(n))
 	if lastErr.(syscall.Errno) == 0 {
-		copy(lpFileName, buf[:n])
-		return int(r1), nil
+		return syscall.UTF16ToString(buf[:n]), nil
 	}
-	return 0, lastErr
+	return "", lastErr
+}
+
+// GetModuleFilenameExW Win32 API wrapper
+func GetModuleFilenameExW(hProcess win32.HANDLE, hModule win32.HANDLE) (string, error) {
+	var buf [win32.MAX_PATH]uint16
+	n := win32.DWORD(len(buf))
+	_, _, lastErr := k32GetModuleFileNameExW.Call(
+		uintptr(hProcess),
+		uintptr(hModule),
+		uintptr(unsafe.Pointer(&buf)),
+		uintptr(n))
+	if lastErr.(syscall.Errno) == 0 {
+		return syscall.UTF16ToString(buf[:]), nil
+	}
+	return "", lastErr
+}
+
+// GetModuleInformation Win32 API wrapper
+// Calling process needs PROCESS_QUERY_INFORMATION and VM_READ
+func GetModuleInformation(hProcess win32.HANDLE, hModule win32.HANDLE) (MODULEINFO, error) {
+	mi := MODULEINFO{}
+	_, _, err := k32GetModuleInformation.Call(
+		uintptr(hProcess),
+		uintptr(hModule),
+		uintptr(unsafe.Pointer(&mi)),
+		uintptr(win32.DWORD(unsafe.Sizeof(mi))))
+	if err.(syscall.Errno) != 0 {
+		return mi, err
+	}
+	return mi, nil
 }
 
 // QueryFullProcessImageName Win32 API wrapper
-func QueryFullProcessImageName(hProcess win32.HANDLE, lpFileName []uint16) (int, error) {
+func QueryFullProcessImageName(hProcess win32.HANDLE) (string, error) {
 	var buf [win32.MAX_PATH]uint16
 	n := win32.DWORD(len(buf))
-	r1, _, lastErr := queryFullProcessImageNameW.Call(
+	_, _, lastErr := queryFullProcessImageNameW.Call(
 		uintptr(hProcess),
 		uintptr(0),
 		uintptr(unsafe.Pointer(&buf)),
 		uintptr(unsafe.Pointer(&n)))
 	if lastErr.(syscall.Errno) == 0 {
-		copy(lpFileName, buf[:n])
-		return int(r1), nil
+		return syscall.UTF16ToString(buf[:n]), nil
 	}
-	return 0, lastErr
+	return "", lastErr
 }
 
 // SetThreadContext Win32 API wrapper
@@ -240,7 +292,7 @@ func WriteProcessMemory(hProcess win32.HANDLE, lpBaseAddress win32.LPCVOID, lpBu
 // SuspendThread Win32 API wrapper
 func SuspendThread(hThread win32.HANDLE) (win32.DWORD, error) {
 	r1, _, lastErr := suspendThread.Call(uintptr(hThread))
-	if int(r1) == -1 {
+	if lastErr.(syscall.Errno) != 0 {
 		return 0, lastErr
 	}
 	return win32.DWORD(r1), nil
@@ -249,7 +301,7 @@ func SuspendThread(hThread win32.HANDLE) (win32.DWORD, error) {
 // ResumeThread Win32 API wrapper
 func ResumeThread(hThread win32.HANDLE) (win32.DWORD, error) {
 	r1, _, lastErr := resumeThread.Call(uintptr(hThread))
-	if int(r1) == -1 {
+	if lastErr.(syscall.Errno) != 0 {
 		return 0, lastErr
 	}
 	return win32.DWORD(r1), nil
@@ -260,6 +312,14 @@ func ResetEvent(hEvent win32.HANDLE) error {
 	r1, _, lastErr := resetEvent.Call(uintptr(hEvent))
 	if win32.BOOL(r1) == win32.FALSE {
 		return lastErr
+	}
+	return nil
+}
+
+func TerminateProcess(hProcess win32.HANDLE, exitCode win32.UINT) (err error) {
+	_, _, err = terminateProcess.Call(uintptr(hProcess), uintptr(exitCode))
+	if err.(syscall.Errno) != 0 {
+		return err
 	}
 	return nil
 }

@@ -1,6 +1,7 @@
 package kernel32
 
 import (
+	"fmt"
 	"unsafe"
 	"win32"
 )
@@ -90,4 +91,38 @@ func NewThreadEntry32() THREADENTRY32 {
 	te := THREADENTRY32{}
 	te.DwSize = win32.DWORD(unsafe.Sizeof(te))
 	return te
+}
+
+type PROCESSENTRY32W struct {
+	DwSize              win32.DWORD
+	CntUsage            win32.DWORD
+	Th32ProcessID       win32.DWORD
+	Th32DefaultHeapID   win32.ULONG_PTR
+	Th32ModuleID        win32.DWORD
+	CntThreads          win32.DWORD
+	Th32ParentProcessID win32.DWORD
+	PcPriClassBase      win32.LONG
+	DwFlags             win32.DWORD
+	SzExeFile           [win32.MAX_PATH]uint16
+}
+
+type LPPROCESSENTRY32W *PROCESSENTRY32W
+type LPCPROCESSENTRY32W *PROCESSENTRY32W
+
+func NewProcessEntry32W() PROCESSENTRY32W {
+	return PROCESSENTRY32W{DwSize: win32.DWORD(unsafe.Sizeof(PROCESSENTRY32W{}))}
+}
+
+type MODULEINFO struct {
+	LpBaseOfDll win32.LPVOID
+	// Size of the image mapped in memory
+	// To compute it from the image file we need to add all section sizes
+	// rounded up to the dwPageSize (minimum alloc size) + 1 page for the PE header
+	SizeOfImage win32.DWORD
+	EntryPoint  win32.LPVOID
+}
+
+func (mi MODULEINFO) String() string {
+	return fmt.Sprintf("LpBaseOfDll: 0x%016x SizeOfImage: %d Entrypoint: 0x%016x Entrypoint (relative to base): 0x%08x", mi.LpBaseOfDll, mi.SizeOfImage, mi.EntryPoint,
+		mi.EntryPoint-mi.LpBaseOfDll)
 }
