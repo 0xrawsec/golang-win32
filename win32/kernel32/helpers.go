@@ -76,7 +76,9 @@ func FindTextSection(hProcess win32.HANDLE, mi MODULEINFO) (mbi win32.MemoryBasi
 	for address := win32.LPCVOID(mi.LpBaseOfDll); address-win32.LPCVOID(mi.LpBaseOfDll) < win32.LPCVOID(mi.SizeOfImage); {
 		mbi, err = VirtualQueryEx(win32.HANDLE(hProcess), address)
 		// Entrypoint is in this memory area
-		if win32.ULONGLONG(mi.EntryPoint) > mbi.BaseAddress && win32.ULONGLONG(mi.EntryPoint) < mbi.BaseAddress+mbi.RegionSize {
+		// Explicit casting is needed because MemoryBasicInformation fields
+		// have not the same types between architectures
+		if win32.ULONGLONG(mi.EntryPoint) > win32.ULONGLONG(mbi.BaseAddress) && win32.ULONGLONG(mi.EntryPoint) < win32.ULONGLONG(mbi.BaseAddress)+win32.ULONGLONG(mbi.RegionSize) {
 			return
 		}
 		address += win32.LPCVOID(mbi.RegionSize)
@@ -222,8 +224,7 @@ func IsThreadRunning(hThread win32.HANDLE) (bool, error) {
 }
 
 // WaitThreadRuns waits until a thread is running
-func WaitThreadRuns(hThread win32.HANDLE, timeout time.Duration) bool {
-	step := time.Millisecond * 100
+func WaitThreadRuns(hThread win32.HANDLE, step, timeout time.Duration) bool {
 	for wait := time.Duration(0); wait < timeout; wait += step {
 		if ok, _ := IsThreadRunning(hThread); ok {
 			return true
