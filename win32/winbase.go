@@ -17,6 +17,7 @@ type DWORD uint32
 type DWORD32 uint32
 type DWORD64 uint64
 type HANDLE PVOID
+type HWND HANDLE
 type WORD uint16
 type LONG int32
 type ULONG uint32
@@ -44,7 +45,7 @@ const (
 	MAX_PATH = 260
 )
 
-//
+// winbase.h
 const (
 	DEBUG_PROCESS                    = 0x1
 	DEBUG_ONLY_THIS_PROCESS          = 0x2
@@ -125,4 +126,14 @@ const (
 	WAIT_OBJECT_0  = 0x0
 	WAIT_TIMEOUT   = 0x102
 	WAIT_FAILED    = 0xFFFFFFFF
+)
+
+// ntstatus.h
+const (
+	STATUS_PENDING = 0x00000103
+)
+
+// minwinbase.h
+const (
+	STILL_ACTIVE = STATUS_PENDING
 )

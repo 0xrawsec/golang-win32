@@ -50,6 +50,7 @@ func TestGetThreadContext(t *testing.T) {
 	if err != nil {
 		panic(err)
 	}
+	t.Logf("Thread context: %s", string(ToJSON(ctx)))
 
 	if err = kernel32.SetThreadContext(win32.HANDLE(pi.Thread), ctx); err != nil {
 		panic(err)
@@ -199,7 +200,7 @@ func TestGetModuleInfoFromPid(t *testing.T) {
 	pi := new(syscall.ProcessInformation)
 	t.Logf("Creating process: %s", image)
 	syscall.CreateProcess(name, nil, nil, nil, false, win32.CREATE_NEW_CONSOLE, nil, nil, si, pi)
-	if !kernel32.WaitThreadRuns(win32.HANDLE(pi.Thread), time.Second*5) {
+	if !kernel32.WaitThreadRuns(win32.HANDLE(pi.Thread), time.Second*5, time.Millisecond*100) {
 		t.Log("Main thread did not run in a decent amount of time")
 		t.FailNow()
 	}
@@ -216,13 +217,13 @@ func TestGetModuleInfoFromPid(t *testing.T) {
 		t.FailNow()
 	}
 	t.Logf("Text section of binary: %s", text)
-	ok, err := kernel32.CheckProcessIntegrity(win32.HANDLE(pi.Process))
+	bdiff, _, err := kernel32.CheckProcessIntegrity(win32.HANDLE(pi.Process))
 	if err != nil {
 		t.Logf("Cannot check process integrity")
 		t.FailNow()
 	}
-	t.Logf("Integrity check: %t", ok)
-	if !ok {
+	t.Logf("Integrity check: %d", bdiff)
+	if bdiff > 0 {
 		t.FailNow()
 	}
 	kernel32.TerminateProcess(win32.HANDLE(pi.Process), 0)

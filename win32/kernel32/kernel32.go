@@ -93,6 +93,19 @@ func Thread32Next(hSnapshot win32.HANDLE, lpte LPTHREADENTRY32) (bool, error) {
 	return false, lastErr
 }
 
+// GetExitCodeProcess win32 API wrapper
+// hProcess must have the PROCESS_QUERY_INFORMATION or PROCESS_QUERY_LIMITED_INFORMATION
+func GetExitCodeProcess(hProcess win32.HANDLE) (exitCode win32.DWORD, err error) {
+	rc, _, err := getExitCodeProcess.Call(
+		uintptr(hProcess),
+		uintptr(unsafe.Pointer(&exitCode)))
+	// return FALSE if failed
+	if win32.BOOL(rc) == win32.FALSE {
+		return
+	}
+	return exitCode, nil
+}
+
 // GetCurrentProcess Win32 API wrapper
 func GetCurrentProcess() (pseudoHandle win32.HANDLE, lastError error) {
 	pHUint, _, _ := getCurrentProcess.Call()

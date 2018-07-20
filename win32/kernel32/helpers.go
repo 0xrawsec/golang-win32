@@ -173,7 +173,7 @@ func GetModuleFilenameFromPID(pid int) (fn string, err error) {
 
 // ListThreads list the threads of process pid
 func ListThreads(pid int) (ctid chan int) {
-	ctid = make(chan int)
+	ctid = make(chan int, 42)
 	go func() {
 		defer close(ctid)
 		for i := 0; i < 100000; i++ {
@@ -223,6 +223,32 @@ func IsThreadRunning(hThread win32.HANDLE) (bool, error) {
 	return count == 0, nil
 }
 
+// IsProcessRunning returns true if the process is running and false if not
+func IsProcessRunning(hProcess win32.HANDLE) bool {
+	exitCode, err := GetExitCodeProcess(hProcess)
+	if err == nil {
+		if exitCode == win32.STILL_ACTIVE {
+			return true
+		}
+	}
+	return false
+}
+
+// IsPIDRunning returns true if the process referenced by pid is running
+func IsPIDRunning(pid int) bool {
+	if pid == 0 {
+		return true
+	}
+	if pid < 0 {
+		return false
+	}
+	if hProcess, err := OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, win32.FALSE, win32.DWORD(pid)); err == nil {
+		defer CloseHandle(hProcess)
+		return IsProcessRunning(hProcess)
+	}
+	return false
+}
+
 // WaitThreadRuns waits until a thread is running
 func WaitThreadRuns(hThread win32.HANDLE, step, timeout time.Duration) bool {
 	for wait := time.Duration(0); wait < timeout; wait += step {
@@ -250,7 +276,6 @@ func GetImageModuleInfo(hProcess win32.HANDLE) (mi MODULEINFO, err error) {
 		if err != nil {
 			return
 		}
-		log.Infof("Module Name: %s", modName)
 		// need this otherwise we can have issue not finding the module
 		if strings.ToLower(modName) == strings.ToLower(procImage) {
 			log.Debugf("Found module name: %s", modName)
@@ -274,33 +299,37 @@ func GetImageModuleInfoFromPID(pid uint32) (mi MODULEINFO, err error) {
 
 // SuspendProcess suspends a given process
 func SuspendProcess(pid int) {
-	for tid := range ListThreads(pid) {
-		hThread, err := OpenThread(THREAD_SUSPEND_RESUME, win32.FALSE, win32.DWORD(tid))
-		if err != nil {
-			log.LogError(err)
-		} else {
-			_, err := SuspendThread(hThread)
+	if IsPIDRunning(pid) {
+		for tid := range ListThreads(pid) {
+			hThread, err := OpenThread(THREAD_SUSPEND_RESUME, win32.FALSE, win32.DWORD(tid))
 			if err != nil {
 				log.LogError(err)
+			} else {
+				_, err := SuspendThread(hThread)
+				if err != nil {
+					log.LogError(err)
+				}
 			}
+			CloseHandle(hThread)
 		}
-		CloseHandle(hThread)
 	}
 }
 
 // ResumeProcess resumes a previously suspended process
 func ResumeProcess(pid int) {
-	for tid := range ListThreads(pid) {
-		hThread, err := OpenThread(THREAD_SUSPEND_RESUME, win32.FALSE, win32.DWORD(tid))
-		if err != nil {
-			log.LogError(err)
-		} else {
-			_, err := ResumeThread(hThread)
+	if IsPIDRunning(pid) {
+		for tid := range ListThreads(pid) {
+			hThread, err := OpenThread(THREAD_SUSPEND_RESUME, win32.FALSE, win32.DWORD(tid))
 			if err != nil {
 				log.LogError(err)
+			} else {
+				_, err := ResumeThread(hThread)
+				if err != nil {
+					log.LogError(err)
+				}
 			}
+			CloseHandle(hThread)
 		}
-		CloseHandle(hThread)
 	}
 }
 
