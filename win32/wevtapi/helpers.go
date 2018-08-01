@@ -1,14 +1,88 @@
 package wevtapi
 
 import (
+	"bytes"
 	"encoding/xml"
 	"fmt"
+	"io"
 	"syscall"
 	"win32"
 	"win32/kernel32"
 
 	"github.com/0xrawsec/golang-utils/log"
 )
+
+
+///////////////////////////////// XMLMap ///////////////////////////////////////
+// Code adapted from source
+// Source: https://stackoverflow.com/questions/30928770/marshall-map-to-xml-in-go#33110881
+// Source: https://play.golang.org/p/4Z2C-GF0E7
+
+type XMLMap map[string]interface{}
+
+type xmlMapEntry struct {
+	XMLName  xml.Name
+	Value    string `xml:",chardata"`
+	InnerXML string `xml:",innerxml"`
+}
+
+// MarshalXML marshals the map to XML, with each key in the map being a
+// tag and it's corresponding value being it's contents.
+/*func (m XMLMap) MarshalXML(e *xml.Encoder, start xml.StartElement) error {
+	if len(m) == 0 {
+		return nil
+	}
+
+	err := e.EncodeToken(start)
+	if err != nil {
+		return err
+	}
+
+	for k, v := range m {
+		e.Encode(xmlMapEntry{XMLName: xml.Name{Local: k}, Value: v})
+	}
+
+	return e.EncodeToken(start.End())
+}*/
+
+// UnmarshalXML unmarshals the XML into a map of string to strings,
+// creating a key in the map for each tag and setting it's value to the
+// tags contents.
+//
+// The fact this function is on the pointer of Map is important, so that
+// if m is nil it can be initialized, which is often the case if m is
+// nested in another xml structurel. This is also why the first thing done
+// on the first line is initialize it.
+func (m *XMLMap) UnmarshalXML(d *xml.Decoder, start xml.StartElement) error {
+	*m = XMLMap{}
+	for {
+		var e xmlMapEntry
+
+		err := d.Decode(&e)
+		if err == io.EOF {
+			break
+		} else if err != nil {
+			return err
+		}
+		if e.InnerXML != "" {
+			var sm XMLMap
+			r := bytes.NewBuffer([]byte(e.InnerXML))
+			dec := xml.NewDecoder(r)
+			err := sm.UnmarshalXML(dec, xml.StartElement{})
+
+			if err == io.EOF {
+				break
+			} else if err != nil {
+				return err
+			}
+			(*m)[e.XMLName.Local] = sm
+		}
+		if e.Value != "" {
+			(*m)[e.XMLName.Local] = e.Value
+		}
+	}
+	return nil
+}
 
 ///////////////////////////////// XMLEvent /////////////////////////////////////
 
@@ -18,10 +92,14 @@ type Data struct {
 } //`xml:"Data"`
 
 type XMLEvent struct {
+	// seems to always have the same format
+	// if not consider using XMLMap
 	EventData struct {
 		Data []Data
-	} `xml:"EventData"`
-	System struct {
+	} `xml:"EventData,omitempty"`
+	// Using XMLMap type because we don't know what is inside (a priori)
+	UserData XMLMap
+	System   struct {
 		Provider struct {
 			Name string `xml:"Name,attr"`
 			Guid string `xml:"Guid,attr"`
@@ -50,11 +128,30 @@ type XMLEvent struct {
 	} `xml:"System"`
 }
 
+// ToMap converts an XMLEvent to an accurate structure to be serialized
+// we EventData / UserData does not appear if empty
+func (xe *XMLEvent) ToMap() *map[string]interface{} {
+	m := make(map[string]interface{})
+	m["Event"] = make(map[string]interface{})
+	if len(xe.EventData.Data) > 0 {
+		m["Event"].(map[string]interface{})["EventData"] = make(map[string]interface{})
+		for _, d := range xe.EventData.Data {
+			m["Event"].(map[string]interface{})["EventData"].(map[string]interface{})[d.Name] = d.Value
+		}
+	}
+	if len(xe.UserData) > 0 {
+		m["Event"].(map[string]interface{})["UserData"] = xe.UserData
+	}
+	m["Event"].(map[string]interface{})["System"] = xe.System
+	return &m
+}
+
 func (xe *XMLEvent) ToJSONEvent() *JSONEvent {
 	je := NewJSONEvent()
 	for _, d := range xe.EventData.Data {
 		je.Event.EventData[d.Name] = d.Value
 	}
+	je.Event.UserData = xe.UserData
 	// System
 	je.Event.System.Provider.Name = xe.System.Provider.Name
 	je.Event.System.Provider.Guid = xe.System.Provider.Guid
@@ -80,6 +177,7 @@ func (xe *XMLEvent) ToJSONEvent() *JSONEvent {
 type JSONEvent struct {
 	Event struct {
 		EventData map[string]string `xml:"EventData"`
+		UserData  map[string]interface{}
 		System    struct {
 			Provider struct {
 				Name string `xml:"Name,attr"`

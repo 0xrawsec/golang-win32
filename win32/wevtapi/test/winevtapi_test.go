@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"encoding/xml"
 	"fmt"
+	"os"
 	"testing"
 	"time"
 	"win32"
@@ -16,6 +17,7 @@ import (
 const (
 	SysmonChannel   = "Microsoft-Windows-Sysmon/Operational"
 	SecurityChannel = "Security"
+	XMLFile         = "applocker.xml.2"
 )
 
 func init() {
@@ -38,6 +40,32 @@ func TestPushSubscribe(t *testing.T) {
 		t.Fail()
 	}
 	//time.Sleep(15 * time.Second)
+}
+
+func TestUnmarshalXML(t *testing.T) {
+	f, err := os.Open(XMLFile)
+	if err != nil {
+		t.Log(err)
+		t.FailNow()
+	}
+	dec := xml.NewDecoder(f)
+	for {
+		xe := wevtapi.XMLEvent{}
+
+		if err := dec.Decode(&xe); err != nil {
+			t.Log(err)
+			break
+		}
+		//t.Logf("UserData: %v", xe.UserData)
+		//t.Logf("EventData: %v", xe.EventData)
+
+		b, err := json.Marshal(xe.ToMap())
+		if err != nil {
+			t.Log(err)
+			t.FailNow()
+		}
+		t.Log(string(b))
+	}
 }
 
 func TestPullSubscribe(t *testing.T) {
