@@ -425,6 +425,5 @@ func QueryDosDevice(device string) (out []string, err error) {
 			k = i + 1
 		}
 	}
-	log.Infof(syscall.UTF16ToString(targetPath[0:]))
 	return out, nil
 }
