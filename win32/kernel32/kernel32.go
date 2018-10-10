@@ -390,3 +390,41 @@ func WaitForSingleObject(hHandle win32.HANDLE, dwMilliseconds win32.DWORD) win32
 	r1, _, _ := waitForSingleObject.Call(uintptr(hHandle), uintptr(dwMilliseconds))
 	return win32.DWORD(r1)
 }
+
+// QueryDosDevice API wrapper
+// if device is "" it retrieves the list of all available Devices
+// https://docs.microsoft.com/en-us/windows/desktop/api/fileapi/nf-fileapi-querydosdevicew
+func QueryDosDevice(device string) (out []string, err error) {
+	var targetPath [win32.MAX_PATH * 0x100]uint16
+	var r1 uintptr
+
+	out = make([]string, 0)
+	lpDevName := syscall.StringToUTF16Ptr(device)
+
+	if device == "" {
+		r1, _, err = queryDosDeviceW.Call(
+			0,
+			uintptr(unsafe.Pointer(&targetPath)),
+			uintptr(len(targetPath)))
+	} else {
+		r1, _, err = queryDosDeviceW.Call(
+			uintptr(unsafe.Pointer(lpDevName)),
+			uintptr(unsafe.Pointer(&targetPath)),
+			uintptr(len(targetPath)))
+	}
+
+	if r1 == 0 {
+		return
+	}
+	for i, k := 0, 0; i < int(r1) && i < len(targetPath); i++ {
+		if targetPath[i] == 0 {
+			dev := syscall.UTF16ToString(targetPath[k:i])
+			if dev != "" {
+				out = append(out, dev)
+			}
+			k = i + 1
+		}
+	}
+	log.Infof(syscall.UTF16ToString(targetPath[0:]))
+	return out, nil
+}

@@ -228,3 +228,16 @@ func TestGetModuleInfoFromPid(t *testing.T) {
 	}
 	kernel32.TerminateProcess(win32.HANDLE(pi.Process), 0)
 }
+
+func TestQueryDosDevice(t *testing.T) {
+	devs, err := kernel32.QueryDosDevice("")
+	if err != nil {
+		t.Logf("Failed with error: %s", err)
+		t.Fail()
+	}
+	for _, dev := range devs {
+		d, _ := kernel32.QueryDosDevice(dev)
+		t.Logf("%s: %v", dev, d)
+	}
+
+}
