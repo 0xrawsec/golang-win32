@@ -3,7 +3,8 @@ package user32
 import (
 	"syscall"
 	"unsafe"
-	"win32"
+
+	"github.com/0xrawsec/golang-win32/win32"
 )
 
 func MessageBox(hWnd win32.HWND, text, caption string, uType win32.UINT) (int, error) {

@@ -6,12 +6,11 @@ import (
 	"fmt"
 	"io"
 	"syscall"
-	"win32"
-	"win32/kernel32"
 
 	"github.com/0xrawsec/golang-utils/log"
+	"github.com/0xrawsec/golang-win32/win32"
+	"github.com/0xrawsec/golang-win32/win32/kernel32"
 )
-
 
 ///////////////////////////////// XMLMap ///////////////////////////////////////
 // Code adapted from source

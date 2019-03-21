@@ -3,7 +3,8 @@ package wevtapi
 import (
 	"syscall"
 	"unsafe"
-	"win32"
+
+	"github.com/0xrawsec/golang-win32/win32"
 )
 
 // EvtClose wrapper

@@ -3,9 +3,9 @@ package kernel32
 import (
 	"syscall"
 	"unsafe"
-	"win32"
 
 	"github.com/0xrawsec/golang-utils/log"
+	"github.com/0xrawsec/golang-win32/win32"
 )
 
 // CloseHandle Win32 API wrapper

@@ -2,8 +2,9 @@ package dbghelp
 
 import (
 	"syscall"
-	"win32"
-	"win32/kernel32"
+
+	"github.com/0xrawsec/golang-win32/win32"
+	"github.com/0xrawsec/golang-win32/win32/kernel32"
 )
 
 // MiniDumpWriteDump Win32 API wrapper, the three last args are skipped for the moment

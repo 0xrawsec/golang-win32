@@ -3,16 +3,15 @@ package kernel32
 import (
 	"debug/pe"
 	"encoding/json"
+	"fmt"
 	"os"
+	"reflect"
 	"strings"
 	"syscall"
 	"time"
 
-	"fmt"
-	"reflect"
-	"win32"
-
 	"github.com/0xrawsec/golang-utils/log"
+	"github.com/0xrawsec/golang-win32/win32"
 )
 
 func ToJSON(data interface{}) string {

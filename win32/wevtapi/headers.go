@@ -2,9 +2,9 @@ package wevtapi
 
 import (
 	"fmt"
-	"win32"
 
 	"github.com/0xrawsec/golang-utils/log"
+	"github.com/0xrawsec/golang-win32/win32"
 )
 
 // Should be an enum  _EVT_SUBSCRIBE_NOTIFY_ACTION

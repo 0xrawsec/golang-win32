@@ -3,7 +3,8 @@ package kernel32
 import (
 	"fmt"
 	"unsafe"
-	"win32"
+
+	"github.com/0xrawsec/golang-win32/win32"
 )
 
 const (

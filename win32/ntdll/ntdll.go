@@ -1,8 +1,6 @@
 package ntdll
 
-import (
-	"win32"
-)
+import "github.com/0xrawsec/golang-win32/win32"
 
 // NtQueryInformationProcess Win32 API wrapper
 // TODO: test it
