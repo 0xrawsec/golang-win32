@@ -175,8 +175,8 @@ func (xe *XMLEvent) ToJSONEvent() *JSONEvent {
 
 type JSONEvent struct {
 	Event struct {
-		EventData map[string]string `xml:"EventData"`
-		UserData  map[string]interface{}
+		EventData map[string]string      `xml:"EventData"`
+		UserData  map[string]interface{} `json:",omitempty"`
 		System    struct {
 			Provider struct {
 				Name string `xml:"Name,attr"`
@@ -223,15 +223,8 @@ func GotSignal(signals chan bool) (signal bool, gotsig bool) {
 	return false, false
 }
 
-func enumerateEvents(sub EVT_HANDLE, channel string, signal chan bool, out chan *XMLEvent) (err error) {
+func enumerateEvents(sub EVT_HANDLE, channel string, out chan *XMLEvent) (err error) {
 	for {
-		// Check if we received a signal to stop
-		if _, got := GotSignal(signal); got {
-			// Return error sucess
-			// This will terminate polling loop
-			return syscall.Errno(0)
-		}
-
 		// Try to get events
 		events, err := EvtNext(sub, win32.INFINITE)
 		if err != nil {
@@ -267,45 +260,55 @@ func enumerateEvents(sub EVT_HANDLE, channel string, signal chan bool, out chan 
 	}
 }
 
-// GetAllEventsFromChannel returns a Go channel containing XMLEvents retrieved
-// from the given Windows Event Channel given in parameter
-// flag has to be a value from enum EVT_SUBSCRIBE_FLAGS (c.f. headers.go)
-// signal is used to stop the collection process
-// Translated from source: https://msdn.microsoft.com/en-us/library/windows/desktop/aa385771(v=vs.85).aspx
-func GetAllEventsFromChannel(channel string, flag int, signal chan bool) (c chan *XMLEvent) {
-	var err error
+// EventProvider structure definition
+type EventProvider struct {
+	stop bool
+}
 
+// NewEventProvider EventProvider constructor
+func NewEventProvider() *EventProvider {
+	return &EventProvider{}
+}
+
+// FetchEvents returns a channel of Windows events available in the different log channels
+func (e *EventProvider) FetchEvents(channels []string, flag int) (c chan *XMLEvent) {
 	// Prep the chan
-	c = make(chan *XMLEvent, 42)
+	c = make(chan *XMLEvent, 242)
+	events := make([]win32.HANDLE, len(channels))
+	subs := make([]EVT_HANDLE, len(channels))
 
-	// Creating event
-	// If we reuse name, we reuse event, even across processes
-	eUUID, err := win32.UUID()
-	if err != nil {
-		log.LogErrorAndExit(fmt.Errorf("Cannot generate UUID: %s", err))
-	}
+	// Initializing all the events to listen to
+	for i, channel := range channels {
+		// Creating event
+		// If we reuse name, we reuse event, even across processes
+		eUUID, err := win32.UUID()
+		if err != nil {
+			log.LogErrorAndExit(fmt.Errorf("Cannot generate UUID: %s", err))
+		}
 
-	log.Debugf("Windows Event UUID (Channel:%s): %s", channel, eUUID)
-	event, err := kernel32.CreateEvent(0, win32.TRUE, win32.TRUE, eUUID)
-	if err != nil {
-		log.Errorf("Cannot create event: %s", err)
-		close(c)
-		return
-	}
+		log.Debugf("Windows Event UUID (Channel:%s): %s", channel, eUUID)
+		events[i], err = kernel32.CreateEvent(0, win32.TRUE, win32.TRUE, eUUID)
+		if err != nil {
+			log.Errorf("Cannot create event: %s", err)
+			close(c)
+			return
+		}
 
-	sub, err := EvtPullSubscribe(
-		EVT_HANDLE(win32.NULL),
-		event,
-		channel,
-		"*",
-		EVT_HANDLE(win32.NULL),
-		win32.PVOID(win32.NULL),
-		win32.DWORD(flag))
+		subs[i], err = EvtPullSubscribe(
+			EVT_HANDLE(win32.NULL),
+			events[i],
+			channel,
+			"*",
+			EVT_HANDLE(win32.NULL),
+			win32.PVOID(win32.NULL),
+			win32.DWORD(flag))
 
-	if err != nil {
-		log.Errorf("Failed to subscribe to channel \"%s\": %s", channel, err)
-		close(c)
-		return
+		if err != nil {
+			log.Errorf("Failed to subscribe to channel \"%s\": %s", channel, err)
+			close(c)
+			return
+		}
+
 	}
 
 	// Go routine returning the events
@@ -313,23 +316,34 @@ func GetAllEventsFromChannel(channel string, flag int, signal chan bool) (c chan
 		// Closing output channel
 		defer close(c)
 		// Closing the subscriptions
-		defer EvtClose(sub)
-		// Closing event
-		defer kernel32.CloseHandle(event)
+		defer func() {
+			for _, sub := range subs {
+				EvtClose(sub)
+			}
+		}()
+		// Closing events
+		defer func() {
+			for _, event := range events {
+				kernel32.CloseHandle(event)
+			}
+		}()
 
 	PollLoop:
 		for {
-			rc := kernel32.WaitForSingleObject(event, win32.DWORD(100))
-			switch rc {
-			case win32.WAIT_TIMEOUT:
-				log.Debugf("Timeout waiting for events, (Channel: %s): 0x%08x", channel, rc)
+			rc := kernel32.WaitForMultipleObjects(events, win32.FALSE, 500)
+			switch {
+			case rc == win32.WAIT_TIMEOUT:
+				//log.Debugf("Timeout waiting for events, (Channel: %s): 0x%08x", channel, rc)
 				// Check if we received a signal to stop
-				if _, got := GotSignal(signal); got {
+				if e.stop {
 					return
 				}
+				/*if _, got := GotSignal(signal); got {
+					return
+				}*/
 
-			case win32.WAIT_OBJECT_0:
-				log.Debugf("Events are ready, (Channel: %s): 0x%08x", channel, rc)
+			case rc >= win32.WAIT_OBJECT_0 && rc < win32.MAXIMUM_WAIT_OBJECTS:
+				log.Debugf("Events are ready, (Channel: %s): 0x%08x", channels[rc], rc)
 				// We need to ResetEvent asap
 				// My theory why MS code does not work for high freq events:
 				// If we reset after enumerating, the event might get into a signalled state (by the publisher)
@@ -337,16 +351,24 @@ func GetAllEventsFromChannel(channel string, flag int, signal chan bool) (c chan
 				// creates a deadlock (publisher will not put in a signalled state because it thinks
 				// it did it already and we reset the event) so WaitForSingleObject will return
 				// only timeouts. Took a while to find this explaination ...
-				kernel32.ResetEvent(event)
-				if err := enumerateEvents(sub, channel, signal, c); err.(syscall.Errno) != win32.ERROR_NO_MORE_ITEMS {
+				kernel32.ResetEvent(events[rc])
+				if err := enumerateEvents(subs[rc], channels[rc], c); err.(syscall.Errno) != win32.ERROR_NO_MORE_ITEMS {
 					// If != of Exit Success
 					if err.(syscall.Errno) != 0 {
-						log.Errorf("Failed to enumerate events: %s", err)
+						log.Errorf("Failed to enumerate events for channel %s: %s", channels[rc], err)
 					}
 					break PollLoop
 				}
+			default:
+				log.Errorf("Wait failed: %s", syscall.GetLastError())
+				break PollLoop
 			}
 		}
 	}()
 	return
+}
+
+// Stop stops the EventProvider
+func (e *EventProvider) Stop() {
+	e.stop = true
 }

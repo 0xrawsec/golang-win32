@@ -5,13 +5,15 @@ import (
 	"encoding/xml"
 	"fmt"
 	"os"
+	"os/exec"
+	"sync"
 	"testing"
 	"time"
-	"win32"
-	"win32/kernel32"
-	"win32/wevtapi"
 
 	"github.com/0xrawsec/golang-utils/log"
+	"github.com/0xrawsec/golang-win32/win32"
+	"github.com/0xrawsec/golang-win32/win32/kernel32"
+	"github.com/0xrawsec/golang-win32/win32/wevtapi"
 )
 
 const (
@@ -129,7 +131,7 @@ func TestPullSubscribe(t *testing.T) {
 	}
 }
 
-func TestGetAllEventsFromChannel(t *testing.T) {
+/*func TestGetAllEventsFromChannel(t *testing.T) {
 	signal := make(chan bool)
 	count := 0
 	go func() {
@@ -137,8 +139,6 @@ func TestGetAllEventsFromChannel(t *testing.T) {
 		signal <- false
 	}()
 	c := wevtapi.GetAllEventsFromChannel(SysmonChannel, wevtapi.EvtSubscribeToFutureEvents, signal)
-	//c := wevtapi.GetAllEventsFromChannel(SecurityChannel, wevtapi.EvtSubscribeToFutureEvents, signal)
-	//c := wevtapi.GetAllEventsFromChannel(SecurityChannel, wevtapi.EvtSubscribeStartAtOldestRecord, signal)
 	for e := range c {
 		bytes, err := json.Marshal(e.ToJSONEvent())
 		if err != nil {
@@ -148,4 +148,55 @@ func TestGetAllEventsFromChannel(t *testing.T) {
 		count++
 	}
 	t.Logf("Event Count: %d", count)
+}*/
+
+func TestGetAllEventsFromChannels(t *testing.T) {
+	//signal := make(chan bool)
+	sysmonCounter := make(map[string]int)
+	securityCounter := make(map[string]int)
+	countEvents := 0
+	wg := sync.WaitGroup{}
+
+	ep := wevtapi.NewEventProvider()
+
+	wg.Add(1)
+	go func() {
+		for e := range ep.FetchEvents([]string{SysmonChannel, SecurityChannel},
+			wevtapi.EvtSubscribeToFutureEvents) {
+			j := e.ToJSONEvent()
+			channel := j.Event.System.Channel
+			switch channel {
+			case SecurityChannel:
+				if j.Event.System.EventID == "4688" {
+					image := j.Event.EventData["NewProcessName"]
+					securityCounter[image]++
+				}
+			case SysmonChannel:
+				if j.Event.System.EventID == "1" {
+					image := j.Event.EventData["Image"]
+					sysmonCounter[image]++
+				}
+			}
+			countEvents++
+		}
+		wg.Done()
+	}()
+
+	for i := 0; i < 1000; i++ {
+		exec.Command("whoami.exe").Run()
+	}
+	time.Sleep(5 * time.Second)
+	// Stopping EventProvider
+	ep.Stop()
+	wg.Wait()
+
+	for image, count := range sysmonCounter {
+		secCount, ok := securityCounter[image]
+		if ok {
+			t.Logf("%s: %d", image, count)
+		} else {
+			t.Errorf("Image: %s Sysmon: %d Security: %d", image, count, secCount)
+		}
+	}
+	t.Logf("Total Events Retrieved: %d", countEvents)
 }

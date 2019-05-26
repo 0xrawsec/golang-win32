@@ -391,6 +391,28 @@ func WaitForSingleObject(hHandle win32.HANDLE, dwMilliseconds win32.DWORD) win32
 	return win32.DWORD(r1)
 }
 
+/*
+WaitForMultipleObjects wrapper
+DWORD WaitForMultipleObjects(
+  DWORD        nCount,
+  const HANDLE *lpHandles,
+  BOOL         bWaitAll,
+  DWORD        dwMilliseconds
+);
+https://docs.microsoft.com/en-us/windows/desktop/api/synchapi/nf-synchapi-waitformultipleobjects
+*/
+func WaitForMultipleObjects(lpHandles []win32.HANDLE, bWaitAll win32.BOOL, dwMilliseconds win32.DWORD) win32.DWORD {
+	/*func BytePointer(b []byte) *byte {
+		return (*byte)(unsafe.Pointer(&b[0]))
+	}*/
+	r1, _, _ := waitForMultipleObjects.Call(
+		uintptr(len(lpHandles)),
+		uintptr(unsafe.Pointer(&lpHandles[0])),
+		uintptr(bWaitAll),
+		uintptr(dwMilliseconds))
+	return win32.DWORD(r1)
+}
+
 // QueryDosDevice API wrapper
 // if device is "" it retrieves the list of all available Devices
 // https://docs.microsoft.com/en-us/windows/desktop/api/fileapi/nf-fileapi-querydosdevicew
