@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"syscall"
+	"unsafe"
 
 	"github.com/0xrawsec/golang-utils/log"
 	"github.com/0xrawsec/golang-win32/win32"
@@ -128,7 +129,7 @@ type XMLEvent struct {
 }
 
 // ToMap converts an XMLEvent to an accurate structure to be serialized
-// we EventData / UserData does not appear if empty
+// where EventData / UserData does not appear if empty
 func (xe *XMLEvent) ToMap() *map[string]interface{} {
 	m := make(map[string]interface{})
 	m["Event"] = make(map[string]interface{})
@@ -173,9 +174,10 @@ func (xe *XMLEvent) ToJSONEvent() *JSONEvent {
 
 //////////////////////////////// JSONEvent /////////////////////////////////////
 
+//JSONEvent structure definition
 type JSONEvent struct {
 	Event struct {
-		EventData map[string]string      `xml:"EventData"`
+		EventData map[string]string      `xml:"EventData" json:",omitempty"`
 		UserData  map[string]interface{} `json:",omitempty"`
 		System    struct {
 			Provider struct {
@@ -207,12 +209,21 @@ type JSONEvent struct {
 	}
 }
 
+// NewJSONEvent creates a new JSONEvent structure
 func NewJSONEvent() (je JSONEvent) {
 	je.Event.EventData = make(map[string]string)
 	return je
 }
 
-////////////////////////////////////////////////////////////////////////////////
+/////////////////////////// Interface definition //////////////////////////////
+
+// EventProvider interface definition
+type EventProvider interface {
+	FetchEvents(channels []string, flag int) (c chan *XMLEvent)
+	Stop()
+}
+
+/////////////////////////// PullEventProvider //////////////////////////////////
 
 func GotSignal(signals chan bool) (signal bool, gotsig bool) {
 	select {
@@ -260,18 +271,19 @@ func enumerateEvents(sub EVT_HANDLE, channel string, out chan *XMLEvent) (err er
 	}
 }
 
-// EventProvider structure definition
-type EventProvider struct {
+// PullEventProvider structure definition. Windows event provider using the
+// "Pull" design pattern (i.e. not using callback function from EvtSubscribe).
+type PullEventProvider struct {
 	stop bool
 }
 
-// NewEventProvider EventProvider constructor
-func NewEventProvider() *EventProvider {
-	return &EventProvider{}
+// NewPullEventProvider PullEventProvider constructor
+func NewPullEventProvider() *PullEventProvider {
+	return &PullEventProvider{}
 }
 
-// FetchEvents returns a channel of Windows events available in the different log channels
-func (e *EventProvider) FetchEvents(channels []string, flag int) (c chan *XMLEvent) {
+// FetchEvents implements EventProvider interface
+func (e *PullEventProvider) FetchEvents(channels []string, flag int) (c chan *XMLEvent) {
 	// Prep the chan
 	c = make(chan *XMLEvent, 242)
 	events := make([]win32.HANDLE, len(channels))
@@ -308,7 +320,6 @@ func (e *EventProvider) FetchEvents(channels []string, flag int) (c chan *XMLEve
 			close(c)
 			return
 		}
-
 	}
 
 	// Go routine returning the events
@@ -368,7 +379,99 @@ func (e *EventProvider) FetchEvents(channels []string, flag int) (c chan *XMLEve
 	return
 }
 
-// Stop stops the EventProvider
-func (e *EventProvider) Stop() {
+// Stop implements EventProvider interface
+func (e *PullEventProvider) Stop() {
 	e.stop = true
+}
+
+/////////////////////////// PushEventProvider //////////////////////////////////
+
+// PushEventProvider relies on push EventSubscribe design pattern (i.e. using a callback)
+// function when calling EventSubscribe API
+type PushEventProvider struct {
+	subscriptions []EVT_HANDLE
+	ctx           *pepContext
+}
+
+type pepContext struct {
+	xmlRenderedEvents chan []byte
+	lastError         error
+}
+
+func pepCallback(Action EVT_SUBSCRIBE_NOTIFY_ACTION, UserContext win32.PVOID, Event EVT_HANDLE) uintptr {
+	ctx := (*pepContext)(unsafe.Pointer(UserContext))
+	switch Action {
+	case EvtSubscribeActionDeliver:
+		data, err := EvtRenderXML(Event)
+		if err != nil {
+			ctx.lastError = err
+			log.Errorf("Callback cannot Render event to XML: %s", err)
+			log.Debugf("Partial Event: %s", data)
+		}
+		ctx.xmlRenderedEvents <- data
+	case EvtSubscribeActionError:
+		if Event == ERROR_EVT_QUERY_RESULT_STALE {
+			ctx.lastError = fmt.Errorf("Event record is missing")
+			log.Error(ctx.lastError)
+		} else {
+			ctx.lastError = syscall.Errno(Event)
+			log.Errorf("Callback received error: %s", ctx.lastError)
+		}
+	}
+	return uintptr(0)
+}
+
+// NewPushEventProvider constructs a new PushEventProvider
+func NewPushEventProvider() *PushEventProvider {
+	return &PushEventProvider{
+		make([]EVT_HANDLE, 0),
+		&pepContext{make(chan []byte, 242), nil}}
+}
+
+// FetchEvents implements EventProvider interface
+func (p *PushEventProvider) FetchEvents(channels []string, flag int) (c chan *XMLEvent) {
+	c = make(chan *XMLEvent)
+
+	// Initializing all the events to listen to
+	for _, channel := range channels {
+		sub, err := EvtSubscribe(
+			EVT_HANDLE(win32.NULL),
+			win32.HANDLE(win32.NULL),
+			channel,
+			"*",
+			EVT_HANDLE(win32.NULL),
+			win32.PVOID(unsafe.Pointer(p.ctx)),
+			pepCallback,
+			win32.DWORD(flag))
+
+		if err != nil {
+			log.Errorf("Failed to subscribe to channel \"%s\": %s", channel, err)
+			close(c)
+			return
+		}
+		p.subscriptions = append(p.subscriptions, sub)
+	}
+
+	go func() {
+		defer close(c)
+		for dataXML := range p.ctx.xmlRenderedEvents {
+			dataUTF8 := win32.UTF16BytesToString(dataXML)
+			e := XMLEvent{}
+			err := xml.Unmarshal([]byte(dataUTF8), &e)
+			if err != nil {
+				log.Errorf("Cannot unmarshal event: %s", err)
+				log.Debugf("Event unmarshal failure: %s", dataUTF8)
+			}
+			c <- &e
+		}
+	}()
+	return c
+}
+
+// Stop implements EventProvider interface
+func (p *PushEventProvider) Stop() {
+	for _, sub := range p.subscriptions {
+		EvtClose(sub)
+	}
+	close(p.ctx.xmlRenderedEvents)
 }
