@@ -13,6 +13,11 @@ func UTF16BytesToString(utf16 []byte) string {
 	return syscall.UTF16ToString(*(*[]uint16)(unsafe.Pointer(&utf16)))
 }
 
+// UTF16PtrToString transforms a *uint16 to a Go string
+func UTF16PtrToString(utf16 *uint16) string {
+	return syscall.UTF16ToString(*(*[]uint16)(unsafe.Pointer(&utf16)))
+}
+
 // UUID is a simple UUID generator
 func UUID() (uuid string, err error) {
 	b := make([]byte, 16)
