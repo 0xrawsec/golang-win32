@@ -197,6 +197,7 @@ func GetFirstTidOfPid(pid int) int {
 	for i := 0; i < 100000; i++ {
 		hThread, err := OpenThread(THREAD_QUERY_LIMITED_INFORMATION, win32.FALSE, win32.DWORD(i))
 		if err == nil {
+			defer CloseHandle(hThread)
 			ppid, err := GetProcessIdOfThread(hThread)
 			if err != nil {
 				log.LogError(err)
@@ -204,7 +205,6 @@ func GetFirstTidOfPid(pid int) int {
 			if int(ppid) == pid {
 				return i
 			}
-			CloseHandle(hThread)
 		}
 	}
 	return -1
