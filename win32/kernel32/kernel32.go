@@ -128,6 +128,28 @@ func GetProcessIdOfThread(hThread win32.HANDLE) (win32.DWORD, error) {
 	return win32.DWORD(r1), nil
 }
 
+// GetCurrentThread win32 API wrapper
+func GetCurrentThread() win32.HANDLE {
+	hThread, _, _ := getCurrentThread.Call()
+	return win32.HANDLE(hThread)
+}
+
+// GetCurrentThreadId win32 API wrapper
+func GetCurrentThreadId() win32.DWORD {
+	r1, _, _ := getCurrentThreadId.Call()
+	return win32.DWORD(r1)
+}
+
+// GetThreadId win32 API wrapper
+func GetThreadId(thread win32.HANDLE) (win32.DWORD, error) {
+	r1, _, err := getThreadId.Call(
+		uintptr(thread))
+	if err.(syscall.Errno) == 0 {
+		return win32.DWORD(r1), nil
+	}
+	return win32.DWORD(r1), err
+}
+
 // GetThreadContext Win32 API wrapper
 func GetThreadContext(hThread win32.HANDLE, lpContext win32.LPCONTEXT) error {
 	r1, _, lastErr := getThreadContext.Call(uintptr(hThread), uintptr(unsafe.Pointer(lpContext)))
@@ -218,6 +240,14 @@ func SetThreadContext(hThread win32.HANDLE, lpContext win32.LPCONTEXT) error {
 		return nil
 	}
 	return lastErr
+}
+
+// SetThreadPriority Win32 API wrapper
+func SetThreadPriority(hThread win32.HANDLE, nPriority int) error {
+	if r1, _, err := setThreadPriority.Call(uintptr(hThread), uintptr(nPriority)); r1 != 0 {
+		return err
+	}
+	return nil
 }
 
 // OpenThread Win32 api wrapper

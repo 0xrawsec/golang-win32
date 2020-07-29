@@ -314,6 +314,13 @@ func SuspendProcess(pid int) {
 	}
 }
 
+// SetCurrentThreadPriority helper function to set priority of current Thread
+func SetCurrentThreadPriority(nPriority int) error {
+	hThread := GetCurrentThread()
+	defer CloseHandle(hThread)
+	return SetThreadPriority(hThread, nPriority)
+}
+
 // ResumeProcess resumes a previously suspended process
 func ResumeProcess(pid int) {
 	if IsPIDRunning(pid) {
