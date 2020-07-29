@@ -244,7 +244,7 @@ func SetThreadContext(hThread win32.HANDLE, lpContext win32.LPCONTEXT) error {
 
 // SetThreadPriority Win32 API wrapper
 func SetThreadPriority(hThread win32.HANDLE, nPriority int) error {
-	if r1, _, err := setThreadPriority.Call(uintptr(hThread), uintptr(nPriority)); r1 != 0 {
+	if _, _, err := setThreadPriority.Call(uintptr(hThread), uintptr(nPriority)); err.(syscall.Errno) != 0 {
 		return err
 	}
 	return nil
