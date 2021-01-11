@@ -110,6 +110,20 @@ func FindTextSectionFromImage(image string) (section []byte, err error) {
 	return
 }
 
+func max(i, j int) int {
+	if i < j {
+		return j
+	}
+	return i
+}
+
+func min(i, j int) int {
+	if i < j {
+		return i
+	}
+	return j
+}
+
 // CheckProcessIntegrity helper function to check process integrity
 // compare entrypoint section on disk and in memory
 func CheckProcessIntegrity(hProcess win32.HANDLE) (bytediff int, length int, err error) {
@@ -135,16 +149,14 @@ func CheckProcessIntegrity(hProcess win32.HANDLE) (bytediff int, length int, err
 	if err != nil {
 		return 0, 0, fmt.Errorf("Cannot find section on disk")
 	}
-	// If we meet one of those condition we don't need to go further
-	if len(textInMem) < len(textOnDisk) {
-		return 0, 0, nil
-	}
-	tim := textInMem[:len(textOnDisk)]
-	return fastDiff(&tim, &textOnDisk), len(textOnDisk), nil
+	return fastDiff(&textInMem, &textOnDisk), max(len(textOnDisk), len(textInMem)), nil
 }
 
 func fastDiff(b1, b2 *[]byte) (diff int) {
-	for i := 0; i < len(*b1); i++ {
+	min := min(len(*b1), len(*b2))
+	max := max(len(*b1), len(*b2))
+	diff = max - min
+	for i := 0; i < min; i++ {
 		if (*b1)[i] != (*b2)[i] {
 			diff++
 		}
