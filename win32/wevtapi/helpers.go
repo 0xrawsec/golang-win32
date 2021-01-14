@@ -340,18 +340,13 @@ func (e *PullEventProvider) FetchEvents(channels []string, flag int) (c chan *XM
 		}()
 
 	PollLoop:
-		for {
+		for e.stop {
 			rc := kernel32.WaitForMultipleObjects(events, win32.FALSE, 500)
 			switch {
 			case rc == win32.WAIT_TIMEOUT:
-				//log.Debugf("Timeout waiting for events, (Channel: %s): 0x%08x", channel, rc)
-				// Check if we received a signal to stop
 				if e.stop {
 					return
 				}
-				/*if _, got := GotSignal(signal); got {
-					return
-				}*/
 
 			case rc >= win32.WAIT_OBJECT_0 && rc < win32.MAXIMUM_WAIT_OBJECTS:
 				log.Debugf("Events are ready, (Channel: %s): 0x%08x", channels[rc], rc)
