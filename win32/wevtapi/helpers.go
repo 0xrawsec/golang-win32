@@ -340,7 +340,7 @@ func (e *PullEventProvider) FetchEvents(channels []string, flag int) (c chan *XM
 		}()
 
 	PollLoop:
-		for e.stop {
+		for !e.stop {
 			rc := kernel32.WaitForMultipleObjects(events, win32.FALSE, 500)
 			switch {
 			case rc == win32.WAIT_TIMEOUT:
