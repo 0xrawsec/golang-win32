@@ -283,7 +283,7 @@ func NewPullEventProvider() *PullEventProvider {
 }
 
 // FetchEvents implements EventProvider interface
-func (e *PullEventProvider) FetchEvents(channels []string, flag int) (c chan *XMLEvent) {
+func (e *PullEventProvider) FetchEvents(channels []string, flag int, query string) (c chan *XMLEvent) {
 	// Prep the chan
 	c = make(chan *XMLEvent, 242)
 	events := make([]win32.HANDLE, len(channels))
@@ -310,7 +310,7 @@ func (e *PullEventProvider) FetchEvents(channels []string, flag int) (c chan *XM
 			EVT_HANDLE(win32.NULL),
 			events[i],
 			channel,
-			"*",
+			query,
 			EVT_HANDLE(win32.NULL),
 			win32.PVOID(win32.NULL),
 			win32.DWORD(flag))
