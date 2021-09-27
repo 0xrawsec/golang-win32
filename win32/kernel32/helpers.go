@@ -1,3 +1,5 @@
+// +build windows
+
 package kernel32
 
 import (
@@ -192,7 +194,7 @@ func ListThreads(pid int) (ctid chan int) {
 			if err == nil {
 				ppid, err := GetProcessIdOfThread(hThread)
 				if err != nil {
-					log.LogError(err)
+					log.Error(err)
 				}
 				if int(ppid) == pid {
 					ctid <- i
@@ -212,7 +214,7 @@ func GetFirstTidOfPid(pid int) int {
 			defer CloseHandle(hThread)
 			ppid, err := GetProcessIdOfThread(hThread)
 			if err != nil {
-				log.LogError(err)
+				log.Error(err)
 			}
 			if int(ppid) == pid {
 				return i
@@ -314,11 +316,11 @@ func SuspendProcess(pid int) {
 		for tid := range ListThreads(pid) {
 			hThread, err := OpenThread(THREAD_SUSPEND_RESUME, win32.FALSE, win32.DWORD(tid))
 			if err != nil {
-				log.LogError(err)
+				log.Error(err)
 			} else {
 				_, err := SuspendThread(hThread)
 				if err != nil {
-					log.LogError(err)
+					log.Error(err)
 				}
 			}
 			CloseHandle(hThread)
@@ -339,11 +341,11 @@ func ResumeProcess(pid int) {
 		for tid := range ListThreads(pid) {
 			hThread, err := OpenThread(THREAD_SUSPEND_RESUME, win32.FALSE, win32.DWORD(tid))
 			if err != nil {
-				log.LogError(err)
+				log.Error(err)
 			} else {
 				_, err := ResumeThread(hThread)
 				if err != nil {
-					log.LogError(err)
+					log.Error(err)
 				}
 			}
 			CloseHandle(hThread)

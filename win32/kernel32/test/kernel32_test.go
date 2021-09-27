@@ -116,14 +116,14 @@ func TestReadProcessMemory(t *testing.T) {
 func TestThreadFirst32(t *testing.T) {
 	snap, err := kernel32.CreateToolhelp32Snapshot(win32.DWORD(kernel32.TH32CS_SNAPALL), win32.DWORD(0))
 	if err != nil {
-		log.LogError(err)
+		t.Error(err)
 		return
 	}
 	defer kernel32.CloseHandle(snap)
 	te := kernel32.NewThreadEntry32()
 	ok, err := kernel32.Thread32First(snap, &te)
 	if !ok {
-		log.LogError(err)
+		t.Error(err)
 		return
 	}
 	for ok, _ := kernel32.Thread32Next(snap, &te); ok; {
@@ -135,14 +135,14 @@ func TestProcessFirst32(t *testing.T) {
 	pid := 0
 	snap, err := kernel32.CreateToolhelp32Snapshot(win32.DWORD(kernel32.TH32CS_SNAPALL), win32.DWORD(pid))
 	if err != nil {
-		log.LogError(err)
+		t.Error(err)
 		return
 	}
 	defer kernel32.CloseHandle(snap)
 	pe := kernel32.NewProcessEntry32W()
 	ok, err := kernel32.Process32FirstW(snap, &pe)
 	if !ok {
-		log.LogError(err)
+		t.Error(err)
 		return
 	}
 	log.Debug(ToJSON(pe))
