@@ -4,6 +4,8 @@ github.com/0xrawsec/golang-utils v1.1.3 h1:ESJhyY4aGuiP4hmDcDNjoL/cc7SWDZVfgg4dE
 github.com/0xrawsec/golang-utils v1.1.3/go.mod h1:DADTtCFY10qXjWmUVhhJqQIZdSweaHH4soYUDEi8mj0=
 github.com/0xrawsec/golang-utils v1.1.8 h1:9TzAKzC7+V2IXaV/3Y1aXiUFHeShL3BXcfL6BheAEH0=
 github.com/0xrawsec/golang-utils v1.1.8/go.mod h1:DADTtCFY10qXjWmUVhhJqQIZdSweaHH4soYUDEi8mj0=
+github.com/0xrawsec/golang-utils v1.3.0 h1:fMgwKu5M2PXFwEfwN9B2T1bfg7LPCaV9fL6Xs/nf2Ps=
+github.com/0xrawsec/golang-utils v1.3.0/go.mod h1:DADTtCFY10qXjWmUVhhJqQIZdSweaHH4soYUDEi8mj0=
 github.com/kr/fs v0.1.0/go.mod h1:FFnZGqtBN9Gxj7eW1uZ42v5BccTP0vu6NEaFoC2HwRg=
 github.com/pkg/errors v0.8.1/go.mod h1:bwawxfHBFNV+L2hUp1rHADufV3IMtnDRdf1r5NINEl0=
 github.com/pkg/sftp v1.10.0/go.mod h1:NxmoDg/QLVWluQDUYG7XBZTLUpKeFa8e3aMf1BfjyHk=

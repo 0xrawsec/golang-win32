@@ -4,9 +4,10 @@ import (
 	"os"
 	"syscall"
 	"testing"
-	"win32"
-	"win32/dbghelp"
-	"win32/kernel32"
+
+	"github.com/0xrawsec/golang-win32/win32"
+	"github.com/0xrawsec/golang-win32/win32/dbghelp"
+	"github.com/0xrawsec/golang-win32/win32/kernel32"
 )
 
 func TestMiniDumpWriteDump(t *testing.T) {

@@ -1,3 +1,5 @@
+// +build windows
+
 package wevtapi
 
 import (
@@ -6,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -20,6 +23,7 @@ const (
 	SysmonChannel   = "Microsoft-Windows-Sysmon/Operational"
 	SecurityChannel = "Security"
 	XMLFile         = "applocker.xml.2"
+	nCalls          = 1000
 )
 
 func init() {
@@ -28,7 +32,7 @@ func init() {
 
 func callWhoami(count int) {
 	for i := 0; i < count; i++ {
-		exec.Command("whoami.exe").Run()
+		exec.Command("whoami.exe").Start()
 	}
 }
 
@@ -228,15 +232,18 @@ func TestPullProviderFetchEvents(t *testing.T) {
 		wg.Done()
 	}()
 
-	for i := 0; i < 1000; i++ {
-		exec.Command("whoami.exe").Run()
-	}
+	log.Infof("Calling x%d whoami.exe", nCalls)
+	callWhoami(nCalls)
+	log.Infof("Sleeping")
 	time.Sleep(5 * time.Second)
 	// Stopping EventProvider
 	ep.Stop()
 	wg.Wait()
 
 	for image, count := range sysmonCounter {
+		if strings.HasSuffix(image, ".test.exe") {
+			continue
+		}
 		secCount, ok := securityCounter[image]
 		if ok {
 			t.Logf("%s: %d", image, count)
@@ -274,10 +281,13 @@ func TestPushProviderFetchEvents(t *testing.T) {
 	sysmonCounter := make(map[string]int)
 	securityCounter := make(map[string]int)
 	countEvents := 0
-	nCalls := 1000
 	wg := sync.WaitGroup{}
 
 	ep := NewPushEventProvider()
+	if err := exec.Command("auditpol", "/set", `/subcategory:Process Creation`, "/success:enable", "/failure:enable").Run(); err != nil {
+		t.Error("Failed to set audit policy")
+		t.FailNow()
+	}
 
 	wg.Add(1)
 	go func() {
@@ -312,15 +322,15 @@ func TestPushProviderFetchEvents(t *testing.T) {
 	wg.Wait()
 
 	for image, count := range sysmonCounter {
-		//if strings.HasSuffix(image, "whoami.exe") {
+		if strings.HasSuffix(image, ".test.exe") {
+			continue
+		}
 		secCount, ok := securityCounter[image]
 		if ok {
 			t.Logf("%s: %d", image, count)
 		} else {
 			t.Errorf("Image: %s Sysmon: %d Security: %d", image, count, secCount)
 		}
-
-		//}
 	}
 	t.Logf("Total Events Retrieved: %d", countEvents)
 }

@@ -1,3 +1,5 @@
+// +build windows
+
 package advapi32
 
 import (

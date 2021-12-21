@@ -1,3 +1,5 @@
+// +build windows
+
 package user32
 
 import "syscall"

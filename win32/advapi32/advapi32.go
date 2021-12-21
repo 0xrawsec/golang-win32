@@ -1,3 +1,5 @@
+// +build windows
+
 package advapi32
 
 import (
@@ -15,6 +17,14 @@ import (
 var (
 	guidRE = regexp.MustCompile(`\{[A-F0-9]{8}-[A-F0-9]{4}-[A-F0-9]{4}-[A-F0-9]{4}-[A-F0-9]{12}\}`)
 )
+
+func MustGUIDFromString(sguid string) (guid *GUID) {
+	var err error
+	if guid, err = GUIDFromString(sguid); err != nil {
+		panic(err)
+	}
+	return
+}
 
 func GUIDFromString(guid string) (*GUID, error) {
 	g := GUID{}

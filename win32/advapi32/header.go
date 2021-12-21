@@ -1,8 +1,11 @@
+// +build windows
+
 package advapi32
 
 import (
 	"fmt"
 	"syscall"
+	"unsafe"
 
 	"github.com/0xrawsec/golang-win32/win32"
 )
@@ -142,6 +145,8 @@ const (
 	EVENT_TRACE_TYPE_FLT_PREOP_FAILURE     = 0x64
 	EVENT_TRACE_TYPE_FLT_POSTOP_FAILURE    = 0x65
 
+	// See flag documentation here
+	// https://docs.microsoft.com/en-us/windows/win32/api/evntrace/ns-evntrace-event_trace_properties
 	EVENT_TRACE_FLAG_PROCESS    = 0x00000001
 	EVENT_TRACE_FLAG_THREAD     = 0x00000002
 	EVENT_TRACE_FLAG_IMAGE_LOAD = 0x00000004
@@ -526,9 +531,17 @@ type EventRecord struct {
 	BufferContext     EtwBufferContext
 	ExtendedDataCount uint16
 	UserDataLength    uint16
-	ExtendedData      EventHeaderExtendedDataItem
+	ExtendedData      *EventHeaderExtendedDataItem
 	UserData          uintptr
 	UserContext       uintptr
+}
+
+func (e *EventRecord) pointer() uintptr {
+	return (uintptr)(unsafe.Pointer(e))
+}
+
+func (e *EventRecord) pointerOffset(offset uintptr) uintptr {
+	return e.pointer() + offset
 }
 
 /*

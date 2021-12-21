@@ -1,3 +1,5 @@
+// +build windows
+
 package win32
 
 import (
@@ -16,6 +18,25 @@ func UTF16BytesToString(utf16 []byte) string {
 // UTF16PtrToString transforms a *uint16 to a Go string
 func UTF16PtrToString(utf16 *uint16) string {
 	return syscall.UTF16ToString(*(*[]uint16)(unsafe.Pointer(&utf16)))
+}
+
+func UTF16AtOffsetToString(pstruct uintptr, offset uintptr) string {
+	out := make([]uint16, 0, 64)
+	wc := (*uint16)(unsafe.Pointer(pstruct + offset))
+	for i := uintptr(2); *wc != 0; i += 2 {
+		out = append(out, *wc)
+		wc = (*uint16)(unsafe.Pointer(pstruct + offset + i))
+	}
+	return syscall.UTF16ToString(out)
+}
+
+func CopyData(pointer uintptr, size int) []byte {
+	out := make([]byte, size)
+	for it := pointer; it != pointer+uintptr(size); it++ {
+		b := (*byte)(unsafe.Pointer(it))
+		out = append(out, *b)
+	}
+	return out
 }
 
 // UUID is a simple UUID generator
