@@ -1,3 +1,4 @@
+//go:build windows
 // +build windows
 
 package win32
@@ -48,4 +49,13 @@ func UUID() (uuid string, err error) {
 	}
 	uuid = fmt.Sprintf("%X-%X-%X-%X-%X", b[0:4], b[4:6], b[6:8], b[8:10], b[10:])
 	return
+}
+
+// Add helper for pointer arithmetic
+func Add(p unsafe.Pointer, i uintptr) unsafe.Pointer {
+	return unsafe.Pointer(uintptr(p) + i)
+}
+
+func Lower(p, other unsafe.Pointer) bool {
+	return uintptr(p) < uintptr(other)
 }

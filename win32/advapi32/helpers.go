@@ -1,8 +1,11 @@
+//go:build windows
 // +build windows
 
 package advapi32
 
 import (
+	"encoding/binary"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -169,13 +172,57 @@ func RegGetValueSizeFromString(reg string) (size uint32, err error) {
 	return
 }
 
+var (
+	ErrUnkownRegValueType = errors.New("unknown registry value type")
+)
+
+// ParseRegValue is a helper function to parse data stored in registry
+func ParseRegValue(data []byte, dtype uint32) (interface{}, error) {
+	switch dtype {
+	case syscall.REG_BINARY:
+		return data, nil
+	case syscall.REG_DWORD:
+		return binary.LittleEndian.Uint32(data), nil
+	case syscall.REG_DWORD_BIG_ENDIAN:
+		return binary.BigEndian.Uint32(data), nil
+	case syscall.REG_MULTI_SZ:
+		out := make([]string, 0)
+		buf := make([]uint16, 0)
+		if len(data) > 0 {
+			p := unsafe.Pointer(&data[0])
+			for i := uintptr(2); i < uintptr(len(data)); i += 2 {
+				wc := (*uint16)(p)
+				if *wc == 0 {
+					out = append(out, syscall.UTF16ToString(buf))
+					buf = make([]uint16, 0)
+				} else {
+					buf = append(buf, *wc)
+				}
+				p = win32.Add(p, 2)
+			}
+			if len(buf) > 0 {
+				out = append(out, syscall.UTF16ToString(buf))
+			}
+		}
+		return out, nil
+	case syscall.REG_NONE:
+		return nil, nil
+	case syscall.REG_QWORD:
+		return binary.LittleEndian.Uint64(data), nil
+	case syscall.REG_SZ, syscall.REG_EXPAND_SZ, syscall.REG_LINK:
+		return win32.UTF16BytesToString(data), nil
+	default:
+		return nil, fmt.Errorf("%w 0x%08x", ErrUnkownRegValueType, dtype)
+	}
+}
+
 // RegGetValueFromString returns the data associated to a registry value as well as
 // its type represented by a uint32
-func RegGetValueFromString(reg string) (data []byte, dtype uint32, err error) {
+func RegGetValueFromString(path string) (data []byte, dtype uint32, err error) {
 	var hKey syscall.Handle
 	var lpcbData uint32
 
-	sp := strings.Split(reg, string(os.PathSeparator))
+	sp := strings.Split(path, string(os.PathSeparator))
 	value := sp[len(sp)-1]
 
 	if hKey, err = RegOpenKeyRecFromString(filepath.Join(sp[0:len(sp)-1]...), win32.KEY_READ); err != nil {
