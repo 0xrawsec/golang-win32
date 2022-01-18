@@ -1,3 +1,4 @@
+//go:build windows
 // +build windows
 
 package advapi32
@@ -283,9 +284,80 @@ func RegOpenKeyEx(hKey syscall.Handle,
 }
 
 /*
+RegEnumKeyExW API wrapper generated from prototype
+WINADVAPI LONG WINAPI RegEnumKeyExW(
+	 HKEY hKey,
+	DWORD dwIndex,
+	LPWSTR lpName,
+	LPDWORD lpcchName,
+	LPDWORD lpReserved,
+	LPWSTR lpClass,
+	LPDWORD lpcchClass,
+	PFILETIME lpftLastWriteTime);
+*/
+func RegEnumKeyExW(
+	hKey syscall.Handle,
+	dwIndex uint32,
+	lpName *uint16,
+	lpcchName *uint32,
+	lpReserved *uint32,
+	lpClass *uint16,
+	lpcchClass *uint32,
+	lpftLastWriteTime *FileTime) error {
+	r1, _, _ := regEnumKeyExW.Call(
+		uintptr(hKey),
+		uintptr(dwIndex),
+		uintptr(unsafe.Pointer(lpName)),
+		uintptr(unsafe.Pointer(lpcchName)),
+		uintptr(unsafe.Pointer(lpReserved)),
+		uintptr(unsafe.Pointer(lpClass)),
+		uintptr(unsafe.Pointer(lpcchClass)),
+		uintptr(unsafe.Pointer(lpftLastWriteTime)))
+	if r1 == 0 {
+		return nil
+	}
+	return syscall.Errno(r1)
+}
+
+/*
+RegEnumValueW API wrapper generated from prototype
+WINADVAPI LONG WINAPI RegEnumValueW(
+	HKEY hKey,
+	DWORD dwIndex,
+	LPWSTR lpValueName,
+	LPDWORD lpcchValueName,
+	LPDWORD lpReserved,
+	LPDWORD lpType,
+	LPBYTE lpData,
+	LPDWORD lpcbData);
+*/
+func RegEnumValueW(hKey syscall.Handle,
+	dwIndex uint32,
+	lpValueName *uint16,
+	lpcchValueName *uint32,
+	lpReserved *uint32,
+	lpType *uint32,
+	lpData *byte,
+	lpcbData *uint32) error {
+	r1, _, _ := regEnumValueW.Call(
+		uintptr(hKey),
+		uintptr(dwIndex),
+		uintptr(unsafe.Pointer(lpValueName)),
+		uintptr(unsafe.Pointer(lpcchValueName)),
+		uintptr(unsafe.Pointer(lpReserved)),
+		uintptr(unsafe.Pointer(lpType)),
+		uintptr(unsafe.Pointer(lpData)),
+		uintptr(unsafe.Pointer(lpcbData)))
+	if r1 == 0 {
+		return nil
+	}
+	return syscall.Errno(r1)
+}
+
+/*
 RegQueryValueExW API wrapper generated from prototype
 WINADVAPI LONG WINAPI RegQueryValueExW(
-	 HKEY hKey,
+	HKEY hKey,
 	LPCWSTR lpValueName,
 	LPDWORD lpReserved,
 	LPDWORD lpType,

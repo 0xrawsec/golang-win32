@@ -136,12 +136,16 @@ func RegOpenKeyRecFromString(path string, samDesired uint32) (hSubKey syscall.Ha
 	sp := strings.Split(path, string(os.PathSeparator))
 	root, key := sp[0], sp[1:]
 	switch root {
-	case "HKLM":
+	case "HKLM", "HKEY_LOCAL_MACHINE":
 		hKey = HKEY_LOCAL_MACHINE
-	case "HKU":
+	case "HKU", "HKEY_USERS":
 		hKey = HKEY_USERS
-	case "HKCR":
+	case "HKCR", "HKEY_CLASSES_ROOT":
 		hKey = HKEY_CLASSES_ROOT
+	case "HKCU", "HKEY_CURRENT_USER":
+		hKey = HKEY_CURRENT_USER
+	case "HKEY_CURRENT_CONFIG":
+		hKey = HKEY_CURRENT_CONFIG
 	default:
 		err = fmt.Errorf("Unknown root key %s", root)
 		return
@@ -250,5 +254,77 @@ func RegGetValueFromString(path string) (data []byte, dtype uint32, err error) {
 		&lpcbData); err != nil {
 		return
 	}
+	return
+}
+
+func RegEnumValues(root string) (values []string, err error) {
+	var hKey syscall.Handle
+
+	values = make([]string, 0)
+	valueName := [MAX_VALUE_NAME]uint16{}
+
+	if hKey, err = RegOpenKeyRecFromString(root, win32.KEY_READ); err != nil {
+		return
+	}
+
+	for i := uint32(0); err == nil; i++ {
+		valueNameLen := uint32(MAX_KEY_LENGTH)
+		err = RegEnumValueW(
+			hKey,
+			i,
+			&valueName[0],
+			&valueNameLen,
+			nil,
+			nil,
+			nil,
+			nil,
+		)
+
+		if err == nil {
+			values = append(values, syscall.UTF16ToString(valueName[:]))
+		}
+	}
+
+	// means we enumerated all keys
+	if err == syscall.Errno(win32.ERROR_NO_MORE_ITEMS) {
+		err = nil
+	}
+
+	return
+}
+
+func RegEnumKeys(root string) (keys []string, err error) {
+	var hKey syscall.Handle
+
+	keys = make([]string, 0)
+	keyName := [MAX_KEY_LENGTH]uint16{}
+
+	if hKey, err = RegOpenKeyRecFromString(root, win32.KEY_READ); err != nil {
+		return
+	}
+
+	for i := uint32(0); err == nil; i++ {
+		keyNameLen := uint32(MAX_KEY_LENGTH)
+		err = RegEnumKeyExW(
+			hKey,
+			i,
+			&keyName[0],
+			&keyNameLen,
+			nil,
+			nil,
+			nil,
+			nil,
+		)
+
+		if err == nil {
+			keys = append(keys, syscall.UTF16ToString(keyName[:]))
+		}
+	}
+
+	// means we enumerated all keys
+	if err == syscall.Errno(win32.ERROR_NO_MORE_ITEMS) {
+		err = nil
+	}
+
 	return
 }

@@ -1,3 +1,4 @@
+//go:build windows
 // +build windows
 
 package advapi32
@@ -832,4 +833,10 @@ const (
 	HKEY_PERFORMANCE_NLSTEXT = syscall.Handle(0x80000060)
 	HKEY_CURRENT_CONFIG      = syscall.Handle(0x80000005)
 	HKEY_DYN_DATA            = syscall.Handle(0x80000006)
+)
+
+const (
+	// https://docs.microsoft.com/en-us/windows/win32/sysinfo/registry-element-size-limits
+	MAX_KEY_LENGTH = 255
+	MAX_VALUE_NAME = 16383
 )

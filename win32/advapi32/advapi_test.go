@@ -217,3 +217,23 @@ func TestRegGetValueSizeFromString(t *testing.T) {
 	t.Logf("Registry value size: %d", size)
 
 }
+
+func TestRegEnumKeys(t *testing.T) {
+	if skeys, err := RegEnumKeys(`HKLM\System\CurrentControlSet\Services`); err != nil {
+		t.Error(err)
+	} else {
+		for _, key := range skeys {
+			t.Log(key)
+		}
+	}
+}
+
+func TestRegEnumValues(t *testing.T) {
+	if values, err := RegEnumValues(`HKLM\System\CurrentControlSet\Enum`); err != nil {
+		t.Error(err)
+	} else {
+		for _, val := range values {
+			t.Log(val)
+		}
+	}
+}

@@ -10,25 +10,27 @@ import (
 	"unsafe"
 )
 
+func unsafeUTF16PtrToString(ptr unsafe.Pointer) string {
+	out := make([]uint16, 0, 64)
+	for wc := *(*uint16)(ptr); wc != 0; wc = *(*uint16)(ptr) {
+		out = append(out, wc)
+		ptr = Add(ptr, 2)
+	}
+	return syscall.UTF16ToString(out)
+}
+
 // UTF16BytesToString transforms a bytes array of UTF16 encoded characters to
 // a Go string
 func UTF16BytesToString(utf16 []byte) string {
-	return syscall.UTF16ToString(*(*[]uint16)(unsafe.Pointer(&utf16)))
+	if len(utf16) > 0 {
+		return unsafeUTF16PtrToString(unsafe.Pointer(&utf16[0]))
+	}
+	return ""
 }
 
 // UTF16PtrToString transforms a *uint16 to a Go string
 func UTF16PtrToString(utf16 *uint16) string {
-	return syscall.UTF16ToString(*(*[]uint16)(unsafe.Pointer(&utf16)))
-}
-
-func UTF16AtOffsetToString(pstruct uintptr, offset uintptr) string {
-	out := make([]uint16, 0, 64)
-	wc := (*uint16)(unsafe.Pointer(pstruct + offset))
-	for i := uintptr(2); *wc != 0; i += 2 {
-		out = append(out, *wc)
-		wc = (*uint16)(unsafe.Pointer(pstruct + offset + i))
-	}
-	return syscall.UTF16ToString(out)
+	return unsafeUTF16PtrToString(unsafe.Pointer(utf16))
 }
 
 func CopyData(pointer uintptr, size int) []byte {
