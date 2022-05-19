@@ -244,6 +244,11 @@ func RegGetValueFromString(path string) (data []byte, dtype uint32, err error) {
 		return
 	}
 
+	// there is nothing to query for
+	if lpcbData == 0 {
+		return
+	}
+
 	data = make([]byte, lpcbData)
 	if err = RegQueryValueEx(
 		hKey,
