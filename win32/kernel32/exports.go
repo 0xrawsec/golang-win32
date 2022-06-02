@@ -1,3 +1,4 @@
+//go:build windows
 // +build windows
 
 package kernel32
@@ -600,6 +601,7 @@ var (
 	getProcessHeap                                = kernel32.NewProc("GetProcessHeap")
 	getProcessHeaps                               = kernel32.NewProc("GetProcessHeaps")
 	getProcessId                                  = kernel32.NewProc("GetProcessId")
+	getProcessInformation                         = kernel32.NewProc("GetProcessInformation")
 	getProcessIdOfThread                          = kernel32.NewProc("GetProcessIdOfThread")
 	getProcessIoCounters                          = kernel32.NewProc("GetProcessIoCounters")
 	getProcessPreferredUILanguages                = kernel32.NewProc("GetProcessPreferredUILanguages")

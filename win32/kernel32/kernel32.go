@@ -1,3 +1,4 @@
+//go:build windows
 // +build windows
 
 package kernel32
@@ -217,6 +218,32 @@ func GetModuleInformation(hProcess win32.HANDLE, hModule win32.HANDLE) (MODULEIN
 		return mi, err
 	}
 	return mi, nil
+}
+
+/*
+GetProcessInformation API wrapper generated from prototype
+WINBASEAPI WINBOOL WINAPI GetProcessInformation (
+	 HANDLE hProcess,
+	 PROCESS_INFORMATION_CLASS ProcessInformationClass,
+	 LPVOID ProcessInformation,
+	 DWORD ProcessInformationSize);
+*/
+func GetProcessInformation(
+	hProcess syscall.Handle,
+	processInformationClass ProcessInformationClass,
+	processInformation uintptr,
+	processInformationSize uint32) error {
+	_, _, err := getProcessInformation.Call(
+		uintptr(hProcess),
+		uintptr(processInformationClass),
+		uintptr(processInformation),
+		uintptr(processInformationSize))
+
+	if err.(syscall.Errno) == win32.ERROR_SUCCESS {
+		return nil
+	}
+
+	return err
 }
 
 // QueryFullProcessImageName Win32 API wrapper

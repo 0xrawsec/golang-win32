@@ -1,9 +1,11 @@
+//go:build windows
 // +build windows
 
 package kernel32
 
 import (
 	"fmt"
+	"math"
 	"unsafe"
 
 	"github.com/0xrawsec/golang-win32/win32"
@@ -128,4 +130,69 @@ type MODULEINFO struct {
 func (mi MODULEINFO) String() string {
 	return fmt.Sprintf("LpBaseOfDll: 0x%016x SizeOfImage: %d Entrypoint: 0x%016x Entrypoint (relative to base): 0x%08x", mi.LpBaseOfDll, mi.SizeOfImage, mi.EntryPoint,
 		mi.EntryPoint-mi.LpBaseOfDll)
+}
+
+type ProcessInformationClass uint32
+
+const (
+	ProcessMemoryPriorityClass = ProcessInformationClass(iota)
+	ProcessMemoryExhaustionInfoClass
+	ProcessAppMemoryInfoClass
+	ProcessInPrivateInfoClass
+	ProcessPowerThrottlingClass
+	ProcessReservedValue1Class
+	ProcessTelemetryCoverageInfoClass
+	ProcessProtectionLevelInfoClass
+	ProcessLeapSecondInfoClass
+	ProcessMachineTypeInfoClass
+	ProcessInformationClassMaxClass
+)
+
+type ProcessProtectionLevelInformation uint32
+
+const (
+	// values assumed from https://docs.microsoft.com/en-us/windows/win32/api/processthreadsapi/ns-processthreadsapi-process_protection_level_information
+	// partially confirmed from: https://github.com/processhacker/processhacker/blob/master/phnt/include/ntpsapi.h
+	ProtectionLevelWintcbLight = ProcessProtectionLevelInformation(iota)
+	ProtectionLevelWindows
+	ProtectionLevelWindowsLight
+	ProtectionLevelAntimalwareLight
+	ProtectionLevelLsaLight
+	ProtectionLevelWintcb
+	ProtectionLevelCodegenLight
+	ProtectionLevelAuthenticode
+	ProtectionLevelPplApp
+
+	ProtectionLevelNone = math.MaxUint32 - 1
+)
+
+type MemoryPriorityInformation uint32
+
+const (
+	MemoryPriorityVeryLow = MemoryPriorityInformation(iota + 1)
+	MemoryPriorityLow
+	MemoryPriorityMedium
+	MemoryPriorityBelowNormal
+	MemoryPriorityNormal
+)
+
+type ProcessMemoryExhaustionType uint32
+
+const (
+	PMETypeFailFastOnCommitFailure = ProcessMemoryExhaustionType(iota)
+	PMETypeMax
+)
+
+type ProcessMemoryExhaustionInfo struct {
+	Version  uint16
+	Reserved uint16
+	Type     ProcessMemoryExhaustionType
+	Value    uintptr
+}
+
+type AppMemoryInformation struct {
+	AvailableCommit        uint64
+	PrivateCommitUsage     uint64
+	PeakPrivateCommitUsage uint64
+	TotalCommitUsage       uint64
 }

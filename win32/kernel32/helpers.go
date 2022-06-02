@@ -1,3 +1,4 @@
+//go:build windows
 // +build windows
 
 package kernel32
@@ -11,6 +12,7 @@ import (
 	"strings"
 	"syscall"
 	"time"
+	"unsafe"
 
 	"github.com/0xrawsec/golang-utils/log"
 	"github.com/0xrawsec/golang-win32/win32"
@@ -308,6 +310,26 @@ func GetImageModuleInfoFromPID(pid uint32) (mi MODULEINFO, err error) {
 	}
 	defer CloseHandle(hProcess)
 	return GetImageModuleInfo(hProcess)
+}
+
+// GetProcessProtectionLevel gives the protection level associated to the process identified by pid
+func GetProcessProtectionLevel(pid uint32) (ppli ProcessProtectionLevelInformation, err error) {
+
+	hProcess, err := OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, win32.FALSE, win32.DWORD(pid))
+	if err != nil {
+		return
+	}
+
+	defer CloseHandle(hProcess)
+
+	err = GetProcessInformation(
+		syscall.Handle(hProcess),
+		ProcessProtectionLevelInfoClass,
+		uintptr(unsafe.Pointer(&ppli)),
+		uint32(unsafe.Sizeof(ppli)),
+	)
+
+	return
 }
 
 // SuspendProcess suspends a given process
