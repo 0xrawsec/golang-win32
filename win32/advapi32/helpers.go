@@ -150,7 +150,16 @@ func RegOpenKeyRecFromString(path string, samDesired uint32) (hSubKey syscall.Ha
 		err = fmt.Errorf("Unknown root key %s", root)
 		return
 	}
-	return regOpenKeyRecFromPath(hKey, key, samDesired)
+	// return regOpenKeyRecFromPath(hKey, key, samDesired)
+	subkey := strings.Join(key, `\`)
+	err = RegOpenKeyEx(
+		hKey,
+		syscall.StringToUTF16Ptr(subkey),
+		0,
+		samDesired,
+		&hSubKey)
+
+	return
 }
 
 // RegGetValueSizeFromString returns the size of a registry value in bytes
